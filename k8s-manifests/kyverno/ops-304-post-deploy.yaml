@@ -1,0 +1,214 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "17"
+    meta.helm.sh/release-name: kyverno
+    meta.helm.sh/release-namespace: kyverno
+  creationTimestamp: "2026-02-08T23:19:18Z"
+  generation: 18
+  labels:
+    app.kubernetes.io/component: admission-controller
+    app.kubernetes.io/instance: kyverno
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/part-of: kyverno
+    app.kubernetes.io/version: 3.3.4
+    helm.sh/chart: kyverno-3.3.4
+  name: kyverno-admission-controller
+  namespace: kyverno
+  resourceVersion: "66344437"
+  uid: 168cdd53-976f-438b-a28b-891bb3cb43cf
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 3
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: admission-controller
+      app.kubernetes.io/instance: kyverno
+      app.kubernetes.io/part-of: kyverno
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 40%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-04-22T13:23:35Z"
+      creationTimestamp: null
+      labels:
+        app.kubernetes.io/component: admission-controller
+        app.kubernetes.io/instance: kyverno
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/part-of: kyverno
+        app.kubernetes.io/version: 3.3.4
+        helm.sh/chart: kyverno-3.3.4
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: admission-controller
+                app.kubernetes.io/instance: kyverno
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - args:
+        - --caSecretName=kyverno-svc.kyverno.svc.kyverno-tls-ca
+        - --tlsSecretName=kyverno-svc.kyverno.svc.kyverno-tls-pair
+        - --backgroundServiceAccountName=system:serviceaccount:kyverno:kyverno-background-controller
+        - --reportsServiceAccountName=system:serviceaccount:kyverno:kyverno-reports-controller
+        - --servicePort=443
+        - --webhookServerPort=9443
+        - --resyncPeriod=15m
+        - --disableMetrics=false
+        - --otelConfig=prometheus
+        - --metricsPort=8000
+        - --admissionReports=true
+        - --maxAdmissionReports=1000
+        - --autoUpdateWebhooks=true
+        - --enableConfigMapCaching=true
+        - --enableDeferredLoading=true
+        - --dumpPayload=false
+        - --generateValidatingAdmissionPolicy=false
+        - --dumpPatches=false
+        - --maxAPICallResponseLength=2000000
+        - --loggingFormat=text
+        - --v=2
+        - --omitEvents=PolicyApplied,PolicySkipped
+        - --enablePolicyException=true
+        - --exceptionNamespace=kyverno
+        - --protectManagedResources=false
+        - --allowInsecureRegistry=false
+        - --registryCredentialHelpers=default,google,amazon,azure,github
+        - --enableReporting=validate,mutate,mutateExisting,imageVerify,generate
+        - --leaderElectionRetryPeriod=10s
+        env:
+        - name: INIT_CONFIG
+          value: kyverno
+        - name: METRICS_CONFIG
+          value: kyverno-metrics
+        - name: KYVERNO_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: KYVERNO_POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: KYVERNO_SERVICEACCOUNT_NAME
+          value: kyverno-admission-controller
+        - name: KYVERNO_ROLE_NAME
+          value: kyverno:admission-controller
+        - name: KYVERNO_SVC
+          value: kyverno-svc
+        - name: TUF_ROOT
+          value: /.sigstore
+        - name: KYVERNO_DEPLOYMENT
+          value: kyverno-admission-controller
+        image: ghcr.io/kyverno/kyverno:v1.13.2
+        imagePullPolicy: IfNotPresent
+        name: kyverno
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /.sigstore
+          name: sigstore
+      dnsPolicy: ClusterFirst
+      initContainers:
+      - args:
+        - --loggingFormat=text
+        - --v=2
+        env:
+        - name: KYVERNO_SERVICEACCOUNT_NAME
+          value: kyverno-admission-controller
+        - name: KYVERNO_ROLE_NAME
+          value: kyverno:admission-controller
+        - name: INIT_CONFIG
+          value: kyverno
+        - name: METRICS_CONFIG
+          value: kyverno-metrics
+        - name: KYVERNO_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: KYVERNO_POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: KYVERNO_DEPLOYMENT
+          value: kyverno-admission-controller
+        - name: KYVERNO_SVC
+          value: kyverno-svc
+        image: ghcr.io/kyverno/kyvernopre:v1.13.2
+        imagePullPolicy: IfNotPresent
+        name: kyverno-pre
+        resources:
+          limits:
+            cpu: 100m
+            memory: 256Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: kyverno-admission-controller
+      serviceAccountName: kyverno-admission-controller
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: sigstore
+status:
+  availableReplicas: 3
+  conditions:
+  - lastTransitionTime: "2026-04-22T12:57:26Z"
+    lastUpdateTime: "2026-04-22T12:57:26Z"
+    message: Deployment has minimum availability.
+    reason: MinimumReplicasAvailable
+    status: "True"
+    type: Available
+  - lastTransitionTime: "2026-04-22T13:53:04Z"
+    lastUpdateTime: "2026-04-22T14:21:46Z"
+    message: ReplicaSet "kyverno-admission-controller-5944787477" has successfully
+      progressed.
+    reason: NewReplicaSetAvailable
+    status: "True"
+    type: Progressing
+  observedGeneration: 18
+  readyReplicas: 3
+  replicas: 3
+  updatedReplicas: 3

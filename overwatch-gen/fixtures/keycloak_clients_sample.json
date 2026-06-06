@@ -1,0 +1,78 @@
+{
+  "clients": [
+    {
+      "clientId": "account",
+      "name": "${client_account}",
+      "rootUrl": "${authBaseUrl}",
+      "baseUrl": "/realms/sentinel/account/",
+      "redirectUris": ["/realms/sentinel/account/*"],
+      "publicClient": true,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "sentinel-dashboard",
+      "name": "Sentinel Dashboard",
+      "rootUrl": "https://sentinel.208.haist.farm",
+      "baseUrl": "https://sentinel.208.haist.farm/",
+      "redirectUris": [
+        "https://sentinel.208.haist.farm/*",
+        "https://sentinel.208.haist.farm/callback"
+      ],
+      "publicClient": false,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "grafana",
+      "name": "Grafana",
+      "rootUrl": "https://grafana.208.haist.farm",
+      "baseUrl": "https://grafana.208.haist.farm/",
+      "redirectUris": [
+        "https://grafana.208.haist.farm/*"
+      ],
+      "publicClient": false,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "vault",
+      "name": "HashiCorp Vault",
+      "rootUrl": "https://vault.208.haist.farm",
+      "baseUrl": "https://vault.208.haist.farm/",
+      "redirectUris": [
+        "https://vault.208.haist.farm/*"
+      ],
+      "publicClient": false,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect",
+      "attributes": {}
+    },
+    {
+      "clientId": "admin-cli",
+      "name": "${client_admin-cli}",
+      "rootUrl": "",
+      "redirectUris": [],
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "protocol": "openid-connect",
+      "attributes": {}
+    }
+  ],
+  "client_scopes": [
+    {"name": "openid", "protocol": "openid-connect"},
+    {"name": "profile", "protocol": "openid-connect"},
+    {"name": "email", "protocol": "openid-connect"},
+    {"name": "roles", "protocol": "openid-connect"},
+    {"name": "groups", "protocol": "openid-connect"}
+  ]
+}

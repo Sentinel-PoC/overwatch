@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "overwatch-gen"
+version = "0.1.0"
+description = "L1-L7 architecture audit vault generator for the Overwatch platform"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+readme = "README.md"
+dependencies = [
+    "requests>=2.31",
+    "urllib3>=2.0",
+    "jinja2>=3.1",
+    "PyYAML>=6.0",
+    "kubernetes>=28.1",
+    "hvac>=2.1",
+    # d2 diagram generation: no official Python package exists on PyPI.
+    # The `d2` CLI binary is used via subprocess. See README.md for
+    # one-time operator action required to install d2 on CI runner.
+    # python-d2 does not exist as of 2026-04; subprocess is the correct approach.
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[project.scripts]
+overwatch-gen = "overwatch_gen.main:main"
+
+# The project directory is named `overwatch-gen` (hyphen) but the Python
+# importable package must be `overwatch_gen` (underscore, PEP 8).
+# We declare packages explicitly and use package-dir to map them to the
+# correct paths within this directory.
+#
+# Layout (all paths relative to this pyproject.toml in overwatch-gen/):
+#   ./           -> overwatch_gen package root (__init__.py, main.py here)
+#   ./lib/       -> overwatch_gen.lib sub-package
+#   ./tests/     -> overwatch_gen.tests sub-package
+[tool.setuptools]
+packages = [
+    "overwatch_gen",
+    "overwatch_gen.lib",
+    "overwatch_gen.tests",
+    "overwatch_gen.collectors",
+    "overwatch_gen.renderers",
+    "overwatch_gen.fixtures",
+]
+
+[tool.setuptools.package-dir]
+"overwatch_gen" = "."
+"overwatch_gen.lib" = "lib"
+"overwatch_gen.tests" = "tests"
+"overwatch_gen.collectors" = "collectors"
+"overwatch_gen.renderers" = "renderers"
+"overwatch_gen.fixtures" = "fixtures"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

@@ -1,0 +1,56 @@
+direction: right
+
+title: L4 Transport — NetworkPolicy + Kyverno + UFW {
+  shape: text
+  style.font-size: 20
+  style.bold: true
+}
+
+# --- NetworkPolicy namespaces ---
+{% set namespaces = netpol_policies | map(attribute='namespace') | unique | sort | list %}
+{% for ns in namespaces %}
+ns_{{ ns | replace("-", "_") }}: "{{ ns }}" {
+  shape: rectangle
+  style.fill: "#e8f4fd"
+  style.stroke: "#2196f3"
+}
+{% endfor %}
+
+# --- Kyverno policy node ---
+{% if cluster_policies or namespace_policies %}
+kyverno: "Kyverno" {
+  shape: hexagon
+  style.fill: "#fff3e0"
+  style.stroke: "#ff9800"
+}
+{% set enforce_count = (cluster_policies | selectattr("action", "equalto", "Enforce") | list | length) + (namespace_policies | selectattr("action", "equalto", "Enforce") | list | length) %}
+{% set audit_count = (cluster_policies | selectattr("action", "equalto", "Audit") | list | length) + (namespace_policies | selectattr("action", "equalto", "Audit") | list | length) %}
+kyverno_detail: "{{ enforce_count }} Enforce / {{ audit_count }} Audit" {
+  shape: text
+  style.font-size: 12
+}
+{% endif %}
+
+# --- UFW hosts ---
+{% for host in hosts %}
+host_{{ host.hostname | replace("-", "_") | replace(".", "_") }}: "{{ host.hostname }}\n(UFW {{ host.status }})" {
+  shape: rectangle
+  style.fill: "#f3e5f5"
+  style.stroke: "#9c27b0"
+}
+{% endfor %}
+
+# --- edges: netpol ingress connections ---
+{% for p in netpol_policies %}
+{% set target_ns = p.namespace | replace("-", "_") %}
+{% for rule in p.ingress %}
+{% for src in rule.get("from", []) %}
+{% if src.get("namespaceSelector", {}).get("matchLabels", {}).get("kubernetes.io/metadata.name") %}
+{% set src_ns = src.namespaceSelector.matchLabels["kubernetes.io/metadata.name"] | replace("-", "_") %}
+ns_{{ src_ns }} -> ns_{{ target_ns }}: "{{ p.name }}" {
+  style.stroke: "#4caf50"
+}
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% endfor %}

@@ -1,0 +1,50 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "name": "default",
+        "namespace": "istio-system"
+      },
+      "spec": {
+        "mtls": {"mode": "STRICT"}
+      }
+    },
+    {
+      "metadata": {
+        "name": "default",
+        "namespace": "sentinel"
+      },
+      "spec": {
+        "mtls": {"mode": "STRICT"}
+      }
+    },
+    {
+      "metadata": {
+        "name": "default",
+        "namespace": "monitoring"
+      },
+      "spec": {
+        "mtls": {"mode": "STRICT"}
+      }
+    },
+    {
+      "metadata": {
+        "name": "default",
+        "namespace": "keycloak"
+      },
+      "spec": {
+        "mtls": {"mode": "PERMISSIVE"}
+      }
+    },
+    {
+      "metadata": {
+        "name": "prometheus-scrape",
+        "namespace": "monitoring"
+      },
+      "spec": {
+        "selector": {"matchLabels": {"app": "node-exporter"}},
+        "mtls": {"mode": "PERMISSIVE"}
+      }
+    }
+  ]
+}

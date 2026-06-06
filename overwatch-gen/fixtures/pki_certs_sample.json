@@ -1,0 +1,55 @@
+{
+  "source": "vault_pki",
+  "issuers": [
+    {
+      "name": "haist-root-ca",
+      "issuer_id": "root-ca-001",
+      "issuer_name": "HAIST Root CA",
+      "leaf_issuer": false
+    },
+    {
+      "name": "haist-intermediate-ca",
+      "issuer_id": "int-ca-001",
+      "issuer_name": "HAIST Intermediate CA",
+      "leaf_issuer": true
+    }
+  ],
+  "certs": [
+    {
+      "serial": "72:3a:1f:00:00:00:00:00:00:00:00:00:00:00:00:01",
+      "common_name": "vault.208.haist.farm",
+      "sans": ["vault.208.haist.farm", "vault.internal.haist.farm"],
+      "issuer": "HAIST Intermediate CA",
+      "not_after": "2027-04-20T00:00:00Z",
+      "days_remaining": 365,
+      "revoked": false
+    },
+    {
+      "serial": "72:3a:1f:00:00:00:00:00:00:00:00:00:00:00:00:02",
+      "common_name": "plane.208.haist.farm",
+      "sans": ["plane.208.haist.farm"],
+      "issuer": "HAIST Intermediate CA",
+      "not_after": "2026-05-01T00:00:00Z",
+      "days_remaining": 11,
+      "revoked": false
+    },
+    {
+      "serial": "72:3a:1f:00:00:00:00:00:00:00:00:00:00:00:00:03",
+      "common_name": "gitea.208.haist.farm",
+      "sans": ["gitea.208.haist.farm", "git.haist.farm"],
+      "issuer": "HAIST Intermediate CA",
+      "not_after": "2026-04-25T00:00:00Z",
+      "days_remaining": 5,
+      "revoked": false
+    },
+    {
+      "serial": "72:3a:1f:00:00:00:00:00:00:00:00:00:00:00:00:04",
+      "common_name": "revoked-test.internal",
+      "sans": ["revoked-test.internal"],
+      "issuer": "HAIST Intermediate CA",
+      "not_after": "2026-03-01T00:00:00Z",
+      "days_remaining": -50,
+      "revoked": true
+    }
+  ]
+}

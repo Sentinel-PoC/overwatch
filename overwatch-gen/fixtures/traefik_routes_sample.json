@@ -1,0 +1,83 @@
+{
+  "source": "traefik",
+  "ingress_routes": [
+    {
+      "name": "gitea-route",
+      "namespace": "gitea",
+      "host": "gitea.208.haist.farm",
+      "tls_secret": "gitea-tls",
+      "tls_issuer": "haist-intermediate-issuer",
+      "middlewares": ["security-headers", "rate-limit"],
+      "service": "gitea-http",
+      "service_port": 3000
+    },
+    {
+      "name": "langfuse-route",
+      "namespace": "langfuse",
+      "host": "langfuse.208.haist.farm",
+      "tls_secret": "langfuse-tls",
+      "tls_issuer": "haist-intermediate-issuer",
+      "middlewares": ["auth-forward", "security-headers"],
+      "service": "langfuse-web",
+      "service_port": 3000
+    },
+    {
+      "name": "plane-route",
+      "namespace": "plane",
+      "host": "plane.208.haist.farm",
+      "tls_secret": "plane-tls",
+      "tls_issuer": "haist-intermediate-issuer",
+      "middlewares": ["security-headers"],
+      "service": "plane-web",
+      "service_port": 3000
+    },
+    {
+      "name": "traefik-dashboard-route",
+      "namespace": "traefik",
+      "host": "traefik.208.haist.farm",
+      "tls_secret": "traefik-default-tls",
+      "tls_issuer": "haist-intermediate-issuer",
+      "middlewares": ["auth-forward", "security-headers"],
+      "service": "api@internal",
+      "service_port": 0
+    },
+    {
+      "name": "vault-route",
+      "namespace": "vault",
+      "host": "vault.208.haist.farm",
+      "tls_secret": "vault-tls",
+      "tls_issuer": "haist-intermediate-issuer",
+      "middlewares": ["auth-forward", "security-headers"],
+      "service": "vault",
+      "service_port": 8200
+    }
+  ],
+  "middlewares": [
+    {
+      "name": "auth-forward",
+      "namespace": "traefik",
+      "type": "forwardAuth",
+      "address": "http://traefik-forward-auth.traefik.svc.cluster.local:4181"
+    },
+    {
+      "name": "security-headers",
+      "namespace": "traefik",
+      "type": "headers",
+      "settings": {
+        "stsSeconds": 31536000,
+        "stsIncludeSubdomains": true,
+        "contentTypeNosniff": true,
+        "browserXssFilter": true
+      }
+    },
+    {
+      "name": "rate-limit",
+      "namespace": "traefik",
+      "type": "rateLimit",
+      "settings": {
+        "average": 100,
+        "burst": 50
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+# OPS-304: Kyverno ConfigMap webhook namespaceSelector configuration
+#
+# This documents the authoritative namespaceSelector for Kyverno's resource
+# validating and mutating webhooks. The kyverno ConfigMap `webhooks` field
+# is propagated by Kyverno (via --autoUpdateWebhooks=true) to the
+# kyverno-resource-validating-webhook-cfg and kyverno-resource-mutating-webhook-cfg.
+#
+# NOTE: The kyverno.io-scoped VWCs (exception, policy, global-context, cleanup)
+# are managed by their dedicated Kyverno sub-controllers and do NOT respect this
+# ConfigMap field. In Kyverno v1.13.2, namespaceSelector for these VWCs can only
+# be configured via Helm values at install time. See OPS-306 for Helm reconcile.
+#
+# To apply manually if ConfigMap gets reverted:
+#   kubectl -n kyverno patch configmap kyverno --type=merge \
+#     -p '{"data":{"webhooks":"{\"namespaceSelector\":{\"matchExpressions\":[{\"key\":\"kubernetes.io/metadata.name\",\"operator\":\"NotIn\",\"values\":[...NAMESPACE_LIST...]}]}}}}'
+#
+# Applied: 2026-04-22 as part of OPS-304
+# Populated with 74 namespace exclusions (kyverno, kube-system, kube-public,
+# kube-node-lease, openshift, and 69 openshift-* namespaces)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kyverno
+  namespace: kyverno
+  labels:
+    app.kubernetes.io/component: config
+    app.kubernetes.io/instance: kyverno
+    app.kubernetes.io/managed-by: ops-304
+# data.webhooks is the authoritative source for namespaceSelector.
+# The full value is stored in the live ConfigMap. This file documents the
+# intent. The actual ConfigMap value includes all 74 excluded namespaces
+# as confirmed by:
+#   kubectl -n kyverno get configmap kyverno -o jsonpath='{.data.webhooks}' | python3 -c
+#     "import json,sys; d=json.loads(sys.stdin.read());
+#     ns=d['namespaceSelector']['matchExpressions'][0]['values'];
+#     print(len(ns), 'namespaces excluded')"
+# Output: 74 namespaces excluded

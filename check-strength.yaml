@@ -1,0 +1,140 @@
+# Check Strength Registry — Overwatch Platform
+# READ-ONLY for all agents. Only Jim modifies this file.
+#
+# Purpose: The PLANNER reads this before creating compliance issues.
+# If a control's only check is "trivial" or "weak", the PLANNER must not
+# create issues claiming compliance improvement without first improving the check.
+#
+# Strength levels:
+#   strong   — Runtime/API probe verifying actual operational state
+#   moderate — Config file inspection on the actual host
+#   weak     — File/directory existence check only (not content quality)
+#   trivial  — Checks default OS/platform state that always passes
+#   proxy    — Falls back to SCA score, redundant with other checks
+#   misleading — Check output claims more than it verifies
+#
+# Generated from research audit 2026-03-18. Based on analysis of
+# nist-compliance-check.sh (2,829 lines, 125 checks).
+
+checks:
+  # === TRIVIALLY TRUE (always pass on default installs) ===
+  - control: AC-3
+    check_id: okd_rbac
+    strength: trivial
+    reason: "Checks >50 ClusterRoles. OKD ships with hundreds by default."
+
+  - control: AU-11
+    check_id: log_retention
+    strength: trivial
+    reason: "Checks >=3 logrotate configs. Every Linux system has dozens."
+
+  - control: CA-2
+    check_id: compliance_timer
+    strength: trivial
+    reason: "Script checks if its own timer is running. Circular."
+
+  - control: CM-7
+    check_id: unnecessary_services
+    strength: trivial
+    reason: "Checks telnetd/rsh/xinetd not running. Never installed on modern Ubuntu."
+
+  - control: IA-4
+    check_id: identifier_management
+    strength: trivial
+    reason: "Checks UID_MIN >= 1000 in login.defs. Ubuntu default."
+
+  - control: IA-8
+    check_id: non_org_users
+    strength: trivial
+    reason: "Checks only root has UID 0. Default on every Linux."
+
+  - control: SC-39
+    check_id: process_isolation
+    strength: trivial
+    reason: "Checks >=5 SCCs in OKD. OpenShift ships with ~20 default."
+
+  - control: SI-4
+    check_id: wazuh_rules_loaded
+    strength: trivial
+    reason: "Checks >=4000 rules. Wazuh ships with ~4500 default."
+
+  # === MISLEADING ===
+  - control: IA-2(1)
+    check_id: mfa_configured
+    strength: misleading
+    reason: "Hard-codes 'OTP enabled for admin' in output. Only checks Keycloak realm exists, not that OTP is actually configured."
+
+  # === PROXY / REDUNDANT ===
+  - control: AC-6(2)
+    check_id: ssh_root_disabled
+    strength: proxy
+    reason: "Falls back to SCA score >=55% for remote hosts. Redundant with CM-6."
+
+  - control: AU-5
+    check_id: audit_failure_response
+    strength: proxy
+    reason: "Falls back to SCA score for remote hosts. Redundant with SCA checks."
+
+  - control: SC-7
+    check_id: firewall_sca
+    strength: proxy
+    reason: "Uses same SCA score threshold as CM-6. If CM-6 passes, SC-7 always passes."
+
+  # === WEAK (file existence only) ===
+  - control: AT-1
+    check_id: training_policy
+    strength: weak
+    reason: "Greps for word 'training' in compliance docs. Any mention passes."
+
+  - control: AT-3
+    check_id: role_based_training
+    strength: weak
+    reason: "Greps for 'role.based' or 'privileged.user' in docs. Keyword match only."
+
+  - control: AC-5
+    check_id: separation_of_duties
+    strength: weak
+    reason: "Passes if any file contains 'least.privilege' or 'separation'."
+
+  - control: CP-2
+    check_id: dr_scripts
+    strength: weak
+    reason: "Counts DR scripts >=2. Doesn't test if they work."
+
+  - control: CP-4
+    check_id: dr_test_evidence
+    strength: weak
+    reason: "Checks log file exists and is <90 days old. Not content."
+
+  - control: IR-1
+    check_id: ir_plan_current
+    strength: weak
+    reason: "Checks incident response doc exists. Not content quality."
+
+  - control: SA-22
+    check_id: component_lifecycle
+    strength: weak
+    reason: "Checks lifecycle doc exists. Not that it's current or complete."
+
+  # === REWRITTEN (formerly trivial/proxy, now composite runtime checks) ===
+  - control: SI-2
+    check_id: flaw_remediation
+    strength: strong
+    weight: heavy
+    proxy-notes: "Was a trivial proxy (unattended-upgrades installed = PASS). Now a composite check."
+    data-sources:
+      - "DefectDojo API: active Critical+High CVE findings (https://defectdojo.208.haist.farm)"
+      - "apt-get -s upgrade: pending security updates on iac-control"
+    thresholds:
+      cve_pass: "0 Critical AND < 5 High"
+      cve_warn: "0 Critical AND 5-30 High"
+      cve_fail: "any Critical OR > 30 High"
+      patch_pass: "0 pending security updates on iac-control"
+      patch_warn: "1-5 pending security updates"
+      patch_fail: "> 5 pending security updates"
+    combining-rule: "worst-of-two (CVE posture + host patch state)"
+    rewritten-by: "COMP-20 (2026-04-19)"
+    reason: "Former check tested only tool presence, not actual flaw-remediation posture. Rewrite surfaces real CVE debt and patch currency."
+
+  # All other checks not listed here are rated "strong" or "moderate"
+  # and can be trusted for compliance assertions.

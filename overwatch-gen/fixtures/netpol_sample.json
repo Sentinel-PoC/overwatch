@@ -1,0 +1,110 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "name": "allow-dns-egress",
+        "namespace": "istio-system"
+      },
+      "spec": {
+        "podSelector": {},
+        "policyTypes": ["Egress"],
+        "egress": [
+          {
+            "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}]
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "deny-all-ingress",
+        "namespace": "sentinel"
+      },
+      "spec": {
+        "podSelector": {},
+        "policyTypes": ["Ingress"],
+        "ingress": []
+      }
+    },
+    {
+      "metadata": {
+        "name": "allow-ingress-from-gateway",
+        "namespace": "sentinel"
+      },
+      "spec": {
+        "podSelector": {"matchLabels": {"app": "sentinel-agent"}},
+        "policyTypes": ["Ingress"],
+        "ingress": [
+          {
+            "from": [
+              {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "istio-system"}}}
+            ],
+            "ports": [{"protocol": "TCP", "port": 8080}]
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "allow-ingress-from-monitoring",
+        "namespace": "sentinel"
+      },
+      "spec": {
+        "podSelector": {"matchLabels": {"app": "sentinel-agent"}},
+        "policyTypes": ["Ingress"],
+        "ingress": [
+          {
+            "from": [
+              {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "monitoring"}}}
+            ],
+            "ports": [{"protocol": "TCP", "port": 9090}]
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "allow-intra-namespace",
+        "namespace": "monitoring"
+      },
+      "spec": {
+        "podSelector": {},
+        "policyTypes": ["Ingress"],
+        "ingress": [
+          {
+            "from": [{"podSelector": {}}]
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "allow-ingress-from-sentinel",
+        "namespace": "monitoring"
+      },
+      "spec": {
+        "podSelector": {"matchLabels": {"app": "prometheus"}},
+        "policyTypes": ["Ingress"],
+        "ingress": [
+          {
+            "from": [
+              {"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "sentinel"}}}
+            ],
+            "ports": [{"protocol": "TCP", "port": 9090}]
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "allow-all-ingress",
+        "namespace": "keycloak"
+      },
+      "spec": {
+        "podSelector": {},
+        "policyTypes": ["Ingress"],
+        "ingress": [{}]
+      }
+    }
+  ]
+}

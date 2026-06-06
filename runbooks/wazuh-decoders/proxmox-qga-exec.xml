@@ -1,0 +1,179 @@
+<!-- =========================================================================
+     proxmox-qga-exec.xml — Wazuh decoder + rules for Proxmox qga exec calls
+     Issue: OPS-262
+     Purpose: AU-6 compensating control — alert on every Proxmox API call that
+              invokes guest-exec or exec-status via the qemu-guest-agent path.
+              Break-glass use of qga generates an auditable high-severity alert.
+
+     DEPLOY — TWO STEPS (Wazuh requires decoders and rules in separate files):
+       1. Copy <wazuh_decoders> section to:
+              /var/ossec/etc/decoders/proxmox_qga_exec_decoder.xml
+       2. Copy <wazuh_rules> section to:
+              /var/ossec/etc/rules/proxmox_qga_exec_rules.xml
+       3. Validate: python3 -c "import xml.etree.ElementTree as ET; ET.parse('<path>'); print('OK')"
+       4. systemctl restart wazuh-manager
+     ========================================================================= -->
+
+<wazuh_artifact>
+
+<!-- ===================== DECODERS =====================
+     File target: /var/ossec/etc/decoders/proxmox_qga_exec_decoder.xml
+     Extract the <wazuh_decoders> block into that file.
+-->
+<wazuh_decoders>
+
+  <!--
+    INPUT: Proxmox API server logs forwarded via syslog or Wazuh agent file tail.
+    Proxmox logs access via pveproxy process in /var/log/daemon.log.
+
+    Expected log line format (pveproxy access log):
+      <timestamp> pveproxy[<pid>]: <client-ip> - <user> [<datetime>] "POST /api2/json/nodes/<node>/qemu/<vmid>/agent/exec HTTP/1.1" <status> <bytes>
+
+    Wazuh agent on Proxmox node should tail /var/log/daemon.log.
+  -->
+
+  <!-- Primary decoder: match pveproxy process logs -->
+  <decoder name="proxmox-pveproxy">
+    <program_name>^pveproxy</program_name>
+  </decoder>
+
+  <!-- Child decoder: extract fields from pveproxy HTTP access log lines with qga exec path -->
+  <decoder name="proxmox-pveproxy-qga-exec">
+    <parent>proxmox-pveproxy</parent>
+    <prematch>POST /api2/json/nodes/</prematch>
+    <!-- Match path: /api2/json/nodes/<node>/qemu/<vmid>/agent/exec or exec-status -->
+    <regex>POST /api2/json/nodes/(\w[\w\-]*)/qemu/(\d+)/agent/(exec[\w\-]*)</regex>
+    <order>extra_data,id,action</order>
+  </decoder>
+
+  <!-- Child decoder: extract HTTP status from pveproxy access log -->
+  <decoder name="proxmox-pveproxy-access">
+    <parent>proxmox-pveproxy</parent>
+    <prematch>POST /api2/json</prematch>
+    <!-- Match: <srcip> - <user> [<datetime>] "POST <path> HTTP/x.x" <status> <bytes> -->
+    <regex>(\S+) - (\S+) \[[\w/: +-]+\] "POST (/api2/json/\S+) HTTP/\S+" (\d{3}) \d+</regex>
+    <order>srcip,extra_data,url,id</order>
+  </decoder>
+
+</wazuh_decoders>
+
+
+<!-- ===================== RULES =====================
+     File target: /var/ossec/etc/rules/proxmox_qga_exec_rules.xml
+     Extract the <wazuh_rules> block into that file.
+     Rule IDs 110100-110119 are allocated to this integration.
+-->
+<wazuh_rules>
+
+  <group name="proxmox,qga,audit,">
+
+    <!-- Rule 110100: Any Proxmox qga exec call — high severity (AU-6 compensating control)
+         Level 12 = "High importance event" in Wazuh classification.
+         Every POST to /nodes/*/qemu/*/agent/exec fires this rule.
+         This is the primary break-glass audit event. -->
+    <rule id="110100" level="12">
+      <decoded_as>proxmox-pveproxy-qga-exec</decoded_as>
+      <match>exec</match>
+      <description>BREAK-GLASS: Proxmox qga exec submitted — operator executed command inside VM via qemu-guest-agent. Node=$(extra_data) VMID=$(id). Immediate review required per OPS-262.</description>
+      <group>authentication_success,pci_dss_10.2.5,gpg13_7.8,gdpr_IV_32.2,hipaa_164.312.b,nist_800_53_AU.14,nist_800_53_AC.7,nist_800_53_CP.10,tsc_CC6.8,tsc_CC7.2,</group>
+      <options>no_full_log</options>
+    </rule>
+
+    <!-- Rule 110101: qga exec-status poll — informational
+         Level 5 = logged but below default alert threshold.
+         These are the output-retrieval calls after exec; expected to follow rule 110100. -->
+    <rule id="110101" level="5">
+      <decoded_as>proxmox-pveproxy-qga-exec</decoded_as>
+      <match>exec-status</match>
+      <description>Proxmox qga exec-status poll on node=$(extra_data) VMID=$(id). Output retrieval for in-flight break-glass command.</description>
+      <group>audit,</group>
+      <options>no_full_log</options>
+    </rule>
+
+    <!-- Rule 110102: qga exec — HTTP 200 confirmed submission
+         Level 12 = confirmed break-glass event reached the VM. -->
+    <rule id="110102" level="12">
+      <decoded_as>proxmox-pveproxy-access</decoded_as>
+      <match>agent/exec</match>
+      <field name="id">^200$</field>
+      <description>BREAK-GLASS CONFIRMED: Proxmox qga exec returned HTTP 200 — command accepted by qemu-guest-agent. Audit trail: $(srcip) accessed $(url).</description>
+      <group>authentication_success,pci_dss_10.2.5,nist_800_53_AU.14,nist_800_53_CP.10,</group>
+      <options>no_full_log</options>
+    </rule>
+
+    <!-- Rule 110103: qga exec — HTTP 4xx or 5xx
+         Level 8 = notable but not critical; failed attempt still warrants logging. -->
+    <rule id="110103" level="8">
+      <decoded_as>proxmox-pveproxy-access</decoded_as>
+      <match>agent/exec</match>
+      <description>Proxmox qga exec FAILED: $(srcip) attempted qga exec at $(url) — non-200 response. Possible qga not running, token invalid, or VM stopped.</description>
+      <group>audit,authentication_failed,</group>
+      <options>no_full_log</options>
+    </rule>
+
+    <!-- Rule 110110: Repeated qga exec calls — possible scripted access or policy violation
+         Level 14 = "Syslog high importance event" — escalates above normal alert threshold.
+         Fires when 5+ exec calls occur within 60 seconds. -->
+    <rule id="110110" level="14" frequency="5" timeframe="60">
+      <if_matched_sid>110100</if_matched_sid>
+      <description>ALERT: Proxmox qga exec frequency exceeded — 5+ exec calls in 60s. Scripted break-glass or unexpected automation. Immediate operator review required.</description>
+      <group>audit,policy_violation,nist_800_53_AU.6,nist_800_53_SI.4,</group>
+      <options>no_full_log</options>
+    </rule>
+
+  </group>
+
+</wazuh_rules>
+
+<!--
+  DEPLOYMENT INSTRUCTIONS
+  =======================
+
+  Step 1: On Wazuh manager, split this file into two:
+
+    # Extract decoder block
+    # Create /var/ossec/etc/decoders/proxmox_qga_exec_decoder.xml containing:
+    #   <?xml version="1.0" encoding="UTF-8"?>
+    #   <decoder_list>
+    #     ... (decoder elements from <wazuh_decoders> above)
+    #   </decoder_list>
+
+    # Create /var/ossec/etc/rules/proxmox_qga_exec_rules.xml containing:
+    #   <?xml version="1.0" encoding="UTF-8"?>
+    #   <group name="proxmox,qga,audit,">
+    #     ... (rule elements from <wazuh_rules> above)
+    #   </group>
+
+  Step 2: Configure Proxmox nodes to forward pveproxy logs.
+
+    On each Proxmox node, add to /var/ossec/etc/ossec.conf (Wazuh agent):
+      <localfile>
+        <log_format>syslog</log_format>
+        <location>/var/log/daemon.log</location>
+      </localfile>
+
+    Or via rsyslog to Wazuh manager syslog input (port 514).
+
+  Step 3: Validate and restart:
+
+    python3 -c "import xml.etree.ElementTree as ET; ET.parse('/var/ossec/etc/decoders/proxmox_qga_exec_decoder.xml'); print('Decoder XML OK')"
+    python3 -c "import xml.etree.ElementTree as ET; ET.parse('/var/ossec/etc/rules/proxmox_qga_exec_rules.xml'); print('Rules XML OK')"
+    systemctl restart wazuh-manager
+
+  Step 4: Test with ossec-logtest:
+
+    echo 'Apr 20 03:00:00 pve pveproxy[1234]: POST /api2/json/nodes/pve/qemu/200/agent/exec HTTP/1.1 200 42' | /var/ossec/bin/ossec-logtest
+
+    Expected: rule 110100 fires at level 12.
+
+  NIST CONTROL MAPPING
+  ====================
+  AU-6   Audit Record Review     — rules 110100/110102 alert on every exec call
+  AU-12  Audit Record Generation — all qga exec calls captured in Wazuh event log
+  CP-10  System Recovery         — break-glass events are traceable and audited
+  AC-5   Separation of Duties    — Proxmox API access audited independently from SSH
+  IR-4   Incident Handling       — high-severity alert enables immediate operator response
+  SI-4   System Monitoring       — rule 110110 detects anomalous exec frequency
+-->
+
+</wazuh_artifact>

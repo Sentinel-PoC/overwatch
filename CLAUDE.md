@@ -1,0 +1,1 @@
+../../sentinel-iac/CLAUDE.md

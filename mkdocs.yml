@@ -1,0 +1,11 @@
+site_name: OKD Cluster Operations
+site_description: Operational runbook for Overwatch OKD cluster
+nav:
+  - Overview: index.md
+  - Installation: installation.md
+  - Networking: networking.md
+  - Storage: storage.md
+  - Workload Management: workload-management.md
+  - Compliance: compliance.md
+plugins:
+  - techdocs-core

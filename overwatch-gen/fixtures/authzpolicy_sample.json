@@ -1,0 +1,106 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "name": "allow-sentinel-to-prometheus",
+        "namespace": "monitoring"
+      },
+      "spec": {
+        "selector": {"matchLabels": {"app": "prometheus"}},
+        "rules": [
+          {
+            "from": [
+              {
+                "source": {
+                  "principals": ["cluster.local/ns/sentinel/sa/sentinel-agent"]
+                }
+              }
+            ],
+            "to": [
+              {
+                "operation": {
+                  "methods": ["GET"],
+                  "paths": ["/api/v1/query", "/api/v1/query_range", "/metrics"]
+                }
+              }
+            ]
+          }
+        ],
+        "action": "ALLOW"
+      }
+    },
+    {
+      "metadata": {
+        "name": "deny-non-istio-ingress",
+        "namespace": "sentinel"
+      },
+      "spec": {
+        "selector": {},
+        "rules": [
+          {
+            "from": [
+              {
+                "source": {
+                  "notPrincipals": ["*"]
+                }
+              }
+            ]
+          }
+        ],
+        "action": "DENY"
+      }
+    },
+    {
+      "metadata": {
+        "name": "allow-gateway-to-sentinel",
+        "namespace": "sentinel"
+      },
+      "spec": {
+        "selector": {"matchLabels": {"app": "sentinel-agent"}},
+        "rules": [
+          {
+            "from": [
+              {
+                "source": {
+                  "principals": [
+                    "cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"
+                  ]
+                }
+              }
+            ],
+            "to": [
+              {
+                "operation": {
+                  "methods": ["GET", "POST"],
+                  "ports": ["8080"]
+                }
+              }
+            ]
+          }
+        ],
+        "action": "ALLOW"
+      }
+    },
+    {
+      "metadata": {
+        "name": "allow-keycloak-to-sentinel",
+        "namespace": "sentinel"
+      },
+      "spec": {
+        "selector": {"matchLabels": {"app": "sentinel-agent"}},
+        "rules": [
+          {
+            "from": [
+              {
+                "source": {
+                  "principals": ["cluster.local/ns/keycloak/sa/keycloak"]
+                }
+              }
+            ]
+          }
+        ],
+        "action": "ALLOW"
+      }
+    }
+  ]
+}

@@ -1,0 +1,413 @@
+# OPS-297 Replicas Snapshot - Pre-TrueNAS Resize
+# Generated: 2026-04-21
+# Purpose: Recovery reference for restoring replicas after TrueNAS (VM 108) RAM resize
+# Branch: OPS-297-replicas-snapshot
+# Issue: OPS-297 — Pre-TrueNAS: scale K8s iSCSI-PV workloads to 0
+#
+# ARGOCD NOTE: ArgoCD auto-sync was disabled (selfHeal removed) on:
+#   - root-app (openshift-gitops/root-app)
+#   - harbor, matrix, langfuse, keycloak, plane, defectdojo, backstage, netbox apps
+# OPS-299 (restore) must re-enable auto-sync on these apps after scaling back up.
+# Command to restore: kubectl -n openshift-gitops patch application <app> --type=merge \
+#   -p '{"spec":{"syncPolicy":{"automated":{"prune":true,"selfHeal":true}}}}'
+# Root-app must be re-enabled last.
+#
+# TrueNAS iSCSI target: 192.168.12.205:3260
+# OKD worker IPs (master nodes acting as workers): 10.0.0.221, 10.0.0.222, 10.0.0.223
+#
+# iSCSI PVs found (9 total — 7 in 6 target namespaces + 2 additional discovered):
+#   backstage-pg-iscsi   -> backstage/backstage-postgresql-data   (15Gi)
+#   defectdojo-pg-iscsi  -> defectdojo/defectdojo-postgresql-data (15Gi)
+#   harbor-pg-iscsi      -> harbor/harbor-postgresql-data         (15Gi)
+#   keycloak-pg-iscsi    -> keycloak/postgresql-data              (15Gi)
+#   langfuse-ch-iscsi    -> langfuse/langfuse-clickhouse-data     (15Gi)
+#   langfuse-pg-iscsi    -> langfuse/langfuse-postgresql-data     (15Gi)
+#   matrix-pg-iscsi      -> matrix/matrix-postgresql-data         (15Gi)
+#   netbox-pg-iscsi      -> netbox/netbox-postgresql-data         (15Gi)
+#   plane-pg-iscsi       -> plane/plane-postgresql-data           (15Gi)
+#
+# NOTE: backstage and netbox were NOT in the original 6 target namespaces but
+# discovered to have iSCSI-backed PVs on the same TrueNAS target. Included here
+# for safe shutdown. Operator notified via Plane comment.
+#
+# Rollback command (after TrueNAS back online):
+#   See OPS-299 for restore procedure using this file.
+
+metadata:
+  captured_at: "2026-04-21T00:00:00Z"
+  truenas_vm: "108"
+  iscsi_target: "192.168.12.205:3260"
+  iscsi_pv_count: 9
+  namespaces_affected:
+    - harbor
+    - matrix
+    - langfuse
+    - keycloak
+    - plane
+    - defectdojo
+    - backstage     # UNEXPECTED: not in original 6, has iSCSI PV
+    - netbox        # UNEXPECTED: not in original 6, has iSCSI PV
+
+workloads:
+  # =========================================================================
+  # harbor namespace — iSCSI PVC: harbor-postgresql-data (harbor-pg-iscsi)
+  # Scale consumers BEFORE the DB (harbor-database mounts the iSCSI PVC)
+  # =========================================================================
+  - namespace: harbor
+    kind: Deployment
+    name: harbor-core
+    replicas: 1
+    iscsi_pvcs: []          # depends on harbor-database (consumer)
+    note: "consumer of harbor-database; scale before DB"
+
+  - namespace: harbor
+    kind: Deployment
+    name: harbor-exporter
+    replicas: 1
+    iscsi_pvcs: []
+    note: "consumer; scale before DB"
+
+  - namespace: harbor
+    kind: Deployment
+    name: harbor-jobservice
+    replicas: 1
+    iscsi_pvcs: []          # mounts harbor-jobservice PVC (NFS, not iSCSI)
+    note: "consumer; scale before DB"
+
+  - namespace: harbor
+    kind: Deployment
+    name: harbor-nginx
+    replicas: 1
+    iscsi_pvcs: []
+    note: "frontend; scale first"
+
+  - namespace: harbor
+    kind: Deployment
+    name: harbor-portal
+    replicas: 1
+    iscsi_pvcs: []
+    note: "frontend; scale first"
+
+  - namespace: harbor
+    kind: Deployment
+    name: harbor-registry
+    replicas: 1
+    iscsi_pvcs: []          # mounts harbor-registry PVC (NFS, not iSCSI)
+    note: "consumer; scale before DB"
+
+  - namespace: harbor
+    kind: StatefulSet
+    name: harbor-trivy
+    replicas: 1
+    iscsi_pvcs: []
+    note: "consumer; scale before DB"
+
+  - namespace: harbor
+    kind: StatefulSet
+    name: harbor-redis
+    replicas: 1
+    iscsi_pvcs: []
+    note: "shared cache; scale with consumers"
+
+  - namespace: harbor
+    kind: Deployment
+    name: harbor-database
+    replicas: 1
+    iscsi_pvcs:
+      - harbor-postgresql-data    # backed by harbor-pg-iscsi (iSCSI)
+    note: "DIRECT iSCSI mount — scale last in namespace"
+
+  # =========================================================================
+  # matrix namespace — iSCSI PVC: matrix-postgresql-data (matrix-pg-iscsi)
+  # =========================================================================
+  - namespace: matrix
+    kind: Deployment
+    name: element-web
+    replicas: 1
+    iscsi_pvcs: []
+    note: "frontend; scale first"
+
+  - namespace: matrix
+    kind: Deployment
+    name: mas
+    replicas: 1
+    iscsi_pvcs: []
+    note: "auth service; scale before DB"
+
+  - namespace: matrix
+    kind: Deployment
+    name: synapse
+    replicas: 1
+    iscsi_pvcs: []          # mounts synapse-media-store (NFS, not iSCSI)
+    note: "consumer; scale before DB"
+
+  - namespace: matrix
+    kind: Deployment
+    name: matrix-postgresql
+    replicas: 1
+    iscsi_pvcs:
+      - matrix-postgresql-data    # backed by matrix-pg-iscsi (iSCSI)
+    note: "DIRECT iSCSI mount — scale last in namespace"
+
+  # =========================================================================
+  # langfuse namespace — iSCSI PVCs: langfuse-clickhouse-data, langfuse-postgresql-data
+  # =========================================================================
+  - namespace: langfuse
+    kind: Deployment
+    name: langfuse-web
+    replicas: 1
+    iscsi_pvcs: []
+    note: "frontend; scale first"
+
+  - namespace: langfuse
+    kind: Deployment
+    name: langfuse-worker
+    replicas: 1
+    iscsi_pvcs: []
+    note: "worker; scale before DBs"
+
+  - namespace: langfuse
+    kind: Deployment
+    name: langfuse-s3
+    replicas: 1
+    iscsi_pvcs: []
+    note: "minio; scale with consumers"
+
+  - namespace: langfuse
+    kind: Deployment
+    name: langfuse-redis
+    replicas: 1
+    iscsi_pvcs: []
+    note: "cache; scale with consumers"
+
+  - namespace: langfuse
+    kind: Deployment
+    name: langfuse-clickhouse
+    replicas: 1
+    iscsi_pvcs:
+      - langfuse-clickhouse-data  # backed by langfuse-ch-iscsi (iSCSI)
+    note: "DIRECT iSCSI mount"
+
+  - namespace: langfuse
+    kind: Deployment
+    name: langfuse-postgresql
+    replicas: 1
+    iscsi_pvcs:
+      - langfuse-postgresql-data  # backed by langfuse-pg-iscsi (iSCSI)
+    note: "DIRECT iSCSI mount — scale last"
+
+  # =========================================================================
+  # keycloak namespace — iSCSI PVC: postgresql-data (keycloak-pg-iscsi)
+  # =========================================================================
+  - namespace: keycloak
+    kind: Deployment
+    name: keycloak
+    replicas: 1
+    iscsi_pvcs: []
+    note: "consumer; scale before DB"
+
+  - namespace: keycloak
+    kind: Deployment
+    name: postgresql
+    replicas: 1
+    iscsi_pvcs:
+      - postgresql-data           # backed by keycloak-pg-iscsi (iSCSI)
+    note: "DIRECT iSCSI mount — scale last in namespace"
+
+  # =========================================================================
+  # plane namespace — iSCSI PVC: plane-postgresql-data (plane-pg-iscsi)
+  # plane api shows 2 replicas; all others 1
+  # =========================================================================
+  - namespace: plane
+    kind: Deployment
+    name: plane-admin-wl
+    replicas: 1
+    iscsi_pvcs: []
+    note: "consumer; scale before DB"
+
+  - namespace: plane
+    kind: Deployment
+    name: plane-api-wl
+    replicas: 2
+    iscsi_pvcs: []
+    note: "consumer; 2 replicas active; scale before DB"
+
+  - namespace: plane
+    kind: Deployment
+    name: plane-beat-worker-wl
+    replicas: 1
+    iscsi_pvcs: []
+    note: "worker; scale before DB"
+
+  - namespace: plane
+    kind: Deployment
+    name: plane-live-wl
+    replicas: 1
+    iscsi_pvcs: []
+    note: "consumer; scale before DB"
+
+  - namespace: plane
+    kind: Deployment
+    name: plane-space-wl
+    replicas: 1
+    iscsi_pvcs: []
+    note: "consumer; scale before DB"
+
+  - namespace: plane
+    kind: Deployment
+    name: plane-web-wl
+    replicas: 1
+    iscsi_pvcs: []
+    note: "frontend; scale first"
+
+  - namespace: plane
+    kind: Deployment
+    name: plane-worker-wl
+    replicas: 1
+    iscsi_pvcs: []
+    note: "worker; scale before DB"
+
+  - namespace: plane
+    kind: StatefulSet
+    name: plane-rabbitmq-wl
+    replicas: 1
+    iscsi_pvcs: []
+    note: "message queue; scale with consumers"
+
+  - namespace: plane
+    kind: StatefulSet
+    name: plane-redis-wl
+    replicas: 1
+    iscsi_pvcs: []
+    note: "cache; scale with consumers"
+
+  - namespace: plane
+    kind: StatefulSet
+    name: plane-minio-wl
+    replicas: 1
+    iscsi_pvcs: []
+    note: "object store; scale with consumers"
+
+  - namespace: plane
+    kind: Deployment
+    name: plane-postgresql
+    replicas: 1
+    iscsi_pvcs:
+      - plane-postgresql-data     # backed by plane-pg-iscsi (iSCSI)
+    note: "DIRECT iSCSI mount — scale last in namespace"
+
+  # =========================================================================
+  # defectdojo namespace — iSCSI PVC: defectdojo-postgresql-data (defectdojo-pg-iscsi)
+  # =========================================================================
+  - namespace: defectdojo
+    kind: Deployment
+    name: defectdojo-django
+    replicas: 1
+    iscsi_pvcs: []
+    note: "web app; scale before DB"
+
+  - namespace: defectdojo
+    kind: Deployment
+    name: defectdojo-celery-beat
+    replicas: 1
+    iscsi_pvcs: []
+    note: "scheduler; scale before DB"
+
+  - namespace: defectdojo
+    kind: Deployment
+    name: defectdojo-celery-worker
+    replicas: 1
+    iscsi_pvcs: []
+    note: "worker; scale before DB"
+
+  - namespace: defectdojo
+    kind: StatefulSet
+    name: defectdojo-valkey
+    replicas: 1
+    iscsi_pvcs: []
+    note: "cache; scale with consumers"
+
+  - namespace: defectdojo
+    kind: Deployment
+    name: defectdojo-postgresql
+    replicas: 1
+    iscsi_pvcs:
+      - defectdojo-postgresql-data  # backed by defectdojo-pg-iscsi (iSCSI)
+    note: "DIRECT iSCSI mount — scale last in namespace"
+
+  # =========================================================================
+  # backstage namespace — UNEXPECTED iSCSI: backstage-postgresql-data (backstage-pg-iscsi)
+  # Not in original 6 target namespaces — discovered during enumeration
+  # =========================================================================
+  - namespace: backstage
+    kind: Deployment
+    name: backstage
+    replicas: 1
+    iscsi_pvcs: []
+    note: "consumer; scale before DB — UNEXPECTED namespace"
+
+  - namespace: backstage
+    kind: Deployment
+    name: backstage-postgresql
+    replicas: 1
+    iscsi_pvcs:
+      - backstage-postgresql-data  # backed by backstage-pg-iscsi (iSCSI)
+    note: "DIRECT iSCSI mount — UNEXPECTED namespace"
+
+  # =========================================================================
+  # netbox namespace — UNEXPECTED iSCSI: netbox-postgresql-data (netbox-pg-iscsi)
+  # Not in original 6 target namespaces — discovered during enumeration
+  # CronJob: netbox-housekeeping (suspended for safety; mounts NFS not iSCSI
+  # but depends on netbox-postgresql at runtime)
+  # Running Job at snapshot time: netbox-housekeeping-29564880 (Status: Running)
+  # =========================================================================
+  - namespace: netbox
+    kind: Deployment
+    name: netbox
+    replicas: 1
+    iscsi_pvcs: []
+    note: "web app; scale before DB — UNEXPECTED namespace"
+
+  - namespace: netbox
+    kind: Deployment
+    name: netbox-worker
+    replicas: 1
+    iscsi_pvcs: []
+    note: "worker; scale before DB — UNEXPECTED namespace"
+
+  - namespace: netbox
+    kind: StatefulSet
+    name: netbox-valkey-primary
+    replicas: 1
+    iscsi_pvcs: []
+    note: "cache; scale with consumers"
+
+  - namespace: netbox
+    kind: StatefulSet
+    name: netbox-valkey-replicas
+    replicas: 0          # ALREADY 0 at snapshot time
+    iscsi_pvcs: []
+    note: "already 0 replicas at snapshot time"
+
+  - namespace: netbox
+    kind: Deployment
+    name: netbox-postgresql
+    replicas: 1
+    iscsi_pvcs:
+      - netbox-postgresql-data    # backed by netbox-pg-iscsi (iSCSI)
+    note: "DIRECT iSCSI mount — UNEXPECTED namespace"
+
+cronjobs:
+  # Only CronJob found across all namespaces
+  - namespace: netbox
+    name: netbox-housekeeping
+    suspended_before: false   # was NOT suspended at snapshot time
+    schedule: "0 4 * * *"
+    note: "mounts netbox-media (NFS not iSCSI) but depends on netbox-postgresql at runtime; suspended for safety"
+
+running_jobs_at_snapshot:
+  # Running Jobs at snapshot time (from iSCSI namespaces)
+  - namespace: netbox
+    name: netbox-housekeeping-29564880
+    status: Running
+    note: "Runs netbox-housekeeping CronJob; mounts NFS not iSCSI; delete before scaling postgresql"

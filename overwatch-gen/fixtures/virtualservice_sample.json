@@ -1,0 +1,56 @@
+{
+  "source": "istio",
+  "virtual_services": [
+    {
+      "name": "vault-vs",
+      "namespace": "vault",
+      "hosts": ["vault.208.haist.farm"],
+      "gateways": ["istio-ingress/haist-gateway"],
+      "http_routes": [
+        {
+          "match": [{"uri": {"prefix": "/"}}],
+          "route": [{"host": "vault", "port": 8200, "weight": 100}]
+        }
+      ],
+      "tls_routes": []
+    },
+    {
+      "name": "langfuse-vs",
+      "namespace": "langfuse",
+      "hosts": ["langfuse.208.haist.farm"],
+      "gateways": ["istio-ingress/haist-gateway"],
+      "http_routes": [
+        {
+          "match": [{"uri": {"prefix": "/"}}],
+          "route": [{"host": "langfuse-web", "port": 3000, "weight": 100}]
+        }
+      ],
+      "tls_routes": []
+    }
+  ],
+  "destination_rules": [
+    {
+      "name": "vault-mtls",
+      "namespace": "vault",
+      "host": "vault.vault.svc.cluster.local",
+      "traffic_policy": {
+        "tls": {
+          "mode": "ISTIO_MUTUAL"
+        }
+      }
+    }
+  ],
+  "authorization_policies": [
+    {
+      "name": "vault-authz",
+      "namespace": "vault",
+      "action": "ALLOW",
+      "rules": [
+        {
+          "from": [{"source": {"principals": ["cluster.local/ns/traefik/sa/traefik"]}}],
+          "to": [{"operation": {"ports": ["8200"]}}]
+        }
+      ]
+    }
+  ]
+}

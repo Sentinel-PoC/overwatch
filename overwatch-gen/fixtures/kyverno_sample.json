@@ -1,0 +1,144 @@
+{
+  "cluster_policies": [
+    {
+      "metadata": {
+        "name": "disallow-latest-tag",
+        "annotations": {
+          "policies.kyverno.io/severity": "medium",
+          "policies.kyverno.io/description": "Prohibit containers using :latest image tag."
+        }
+      },
+      "spec": {
+        "validationFailureAction": "Enforce",
+        "rules": [
+          {
+            "name": "check-image-tag",
+            "match": {"resources": {"kinds": ["Pod"]}},
+            "validate": {
+              "message": "Using a mutable image tag such as 'latest' is not allowed.",
+              "pattern": {
+                "spec": {
+                  "containers": [{"image": "*:*"}]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "require-pod-requests-limits",
+        "annotations": {
+          "policies.kyverno.io/severity": "medium",
+          "policies.kyverno.io/description": "Require resource requests and limits on all containers."
+        }
+      },
+      "spec": {
+        "validationFailureAction": "Enforce",
+        "rules": [
+          {
+            "name": "validate-resources",
+            "match": {"resources": {"kinds": ["Pod"]}},
+            "validate": {
+              "message": "CPU and memory resource requests and limits are required.",
+              "pattern": {
+                "spec": {
+                  "containers": [
+                    {
+                      "resources": {
+                        "requests": {"memory": "?*", "cpu": "?*"},
+                        "limits": {"memory": "?*"}
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "disallow-privileged-containers",
+        "annotations": {
+          "policies.kyverno.io/severity": "high",
+          "policies.kyverno.io/description": "Prohibit privileged containers."
+        }
+      },
+      "spec": {
+        "validationFailureAction": "Enforce",
+        "rules": [
+          {
+            "name": "check-privileged",
+            "match": {"resources": {"kinds": ["Pod"]}},
+            "validate": {
+              "message": "Privileged containers are disallowed.",
+              "pattern": {
+                "spec": {
+                  "containers": [
+                    {"=(securityContext)": {"=(privileged)": false}}
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "audit-require-labels",
+        "annotations": {
+          "policies.kyverno.io/severity": "low",
+          "policies.kyverno.io/description": "Audit: require standard labels on all workloads."
+        }
+      },
+      "spec": {
+        "validationFailureAction": "Audit",
+        "rules": [
+          {
+            "name": "check-labels",
+            "match": {"resources": {"kinds": ["Deployment", "StatefulSet", "DaemonSet"]}},
+            "validate": {
+              "message": "Label app.kubernetes.io/name is required.",
+              "pattern": {
+                "metadata": {
+                  "labels": {"app.kubernetes.io/name": "?*"}
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "namespace_policies": [
+    {
+      "metadata": {
+        "name": "restrict-host-path",
+        "namespace": "sentinel",
+        "annotations": {
+          "policies.kyverno.io/severity": "high",
+          "policies.kyverno.io/description": "Restrict hostPath volume mounts in sentinel namespace."
+        }
+      },
+      "spec": {
+        "validationFailureAction": "Enforce",
+        "rules": [
+          {
+            "name": "check-hostpath",
+            "match": {"resources": {"kinds": ["Pod"]}},
+            "validate": {
+              "message": "hostPath volumes are not permitted.",
+              "pattern": {
+                "spec": {"=(volumes)": [{"X(hostPath)": null}]}
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

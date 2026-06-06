@@ -1,0 +1,149 @@
+# sentinel-agent configuration
+# Deployed to /opt/sentinel-agent/config.yaml on iac-control
+# Secrets are NOT stored here — fetched from Vault at runtime via AppRole
+
+agent:
+  id: "sentinel-agent"
+  cycle_interval_sec: 300  # 5 minutes (systemd timer handles scheduling)
+  dry_run: false
+  log_dir: "/var/log/sentinel-agent"
+  log_level: "INFO"
+  state_dir: "/opt/sentinel-agent/state"
+
+vault:
+  addr: "https://192.168.12.206:8200"  # direct IP; vault.208.haist.farm resolves to Pangolin which doesn't expose :8200
+  approle_mount: "approle"
+  role_id_file: "/opt/sentinel-agent/.vault-role-id"
+  secret_id_file: "/opt/sentinel-agent/.vault-secret-id"
+  token_ttl: "5m"
+  # Secrets pulled each cycle:
+  # Format: simple string (path, returns first value) or dict with path + key
+  secrets:
+    plane_api_key: "secret/data/plane/api-key"
+    forgejo_token: "secret/data/forgejo"
+    wazuh_password:
+      path: "secret/data/wazuh"
+      key: "api_password"
+    wazuh_indexer_password:
+      path: "secret/data/wazuh-indexer"
+      key: "admin_password"
+    gemini_api_key: "secret/data/gemini"
+
+plane:
+  base_url: "https://plane.208.haist.farm/api/v1"
+  workspace_slug: "haists-it-consulting"
+  project_id: "223c0b66-4255-406e-932f-3b50c0e93543"  # OPS
+  # Poll for issues with these filters:
+  assigned_label: "sentinel-agent"
+  poll_states: ["Todo", "In Progress"]
+
+wazuh:
+  api_url: "https://192.168.12.100:55000"  # direct IP; hostname resolves to Pangolin which doesn't proxy :55000
+  api_user: "wazuh-wui"  # matches Vault secret/wazuh api_user
+  # Optional daemons that are expected to be stopped (won't generate signals)
+  expected_stopped_daemons:
+    - "wazuh-agentlessd"
+    - "wazuh-csyslogd"
+    - "wazuh-dbd"
+    - "wazuh-maild"
+    - "wazuh-reportd"
+  # password from Vault: secret/wazuh
+  severity_threshold: 8  # only alerts >= this level
+  max_alerts: 50
+
+# Wazuh Indexer (OpenSearch) — real security alert data
+# The Manager API only provides agent health; actual alerts live in the Indexer
+wazuh_indexer:
+  api_url: "https://192.168.12.100:9200"  # OpenSearch API on Wazuh server
+  api_user: "admin"
+  # password from Vault: secret/wazuh-indexer (or falls back to wazuh_password)
+  index_pattern: "wazuh-alerts-*"
+  # Rule IDs to exclude (noise: known informational rules that always fire)
+  excluded_rule_ids:
+    - "5710"   # sshd login session opened
+    - "5501"   # login session opened (PAM)
+    - "5715"   # sshd authentication success
+    - "60122"  # CIS-CAT scan result (informational)
+
+argocd:
+  api_url: "https://argocd.208.haist.farm/api/v1"
+  admin_user: "admin"
+  kubeconfig: "/opt/sentinel-agent/.kube/config"
+  # OPS-215: moved from /home/sentinel-agent/.kube/config — ProtectHome=true in
+  # sentinel-agent.service blocks /home/* access inside the systemd sandbox.
+  # Password read from OKD secret at startup (see argocd source)
+  password_from_secret:
+    namespace: "openshift-gitops"
+    secret_name: "openshift-gitops-cluster"
+    key: "admin.password"
+  unhealthy_statuses:
+    - "Degraded"
+    - "Missing"
+  sync_error_statuses:
+    - "SyncFailed"
+    - "ComparisonError"
+
+gemini:
+  # OPS-199 disable 2026-04-29: zero out Gemini API consumption based on
+  # operator audit-of-value (4 of 5 escalations were noise/false-positive).
+  # Empty models list short-circuits in llm/router.py BEFORE query_gemini
+  # is called, falling through to rules-only diagnosis. The gemini section
+  # itself is preserved because agent.py:41-43 load_config requires it.
+  # To re-enable: restore the original models list below and redeploy via ansible.
+  models: []
+  # Original list (pre-2026-04-29):
+  #   - "gemini-2.5-flash"           # primary: 5 RPM, 20 RPD
+  #   - "gemini-2.5-flash-lite"      # fallback 1: 10 RPM, 20 RPD
+  #   - "gemini-3-flash-preview"     # fallback 2: 5 RPM, 20 RPD
+  #   - "gemini-3.1-flash-lite-preview"  # fallback 3: 15 RPM, 500 RPD
+  timeout_sec: 30
+  # API key source: Vault only — secret/gemini, field: api_key
+  # Loaded via vault.secrets.gemini_api_key (line 30 above); never add api_key: here.
+  # SEC-59: key was inadvertently hardcoded in commit dccfe7a (2026-03-18) and moved
+  # to Vault in e5e4ed4. Git history rewrite tracked in SEC-64.
+
+claude:
+  # API key from Vault or env
+  model: "claude-sonnet-4-5-20241022"
+  max_tokens: 4096
+
+ntfy:
+  url: "https://ntfy.208.haist.farm"
+  topic: "sentinel"
+  # Priority mapping in notify/ntfy.py
+
+forgejo:
+  base_url: "http://192.168.12.70:3000"
+  # token from Vault: secret/forgejo
+  owner: "sentinel-admin"
+  repos:
+    overwatch: "overwatch"
+    overwatch_gitops: "overwatch-gitops"
+
+kubernetes:
+  kubeconfig: "/opt/sentinel-agent/.kube/config"
+  # OPS-215: moved from /home/sentinel-agent/.kube/config — ProtectHome=true blocks /home/*
+  # Or use in-cluster config if running on OKD
+
+tier2:
+  max_restarts_per_pod: 3
+  max_restarts_per_cycle: 10
+  stuck_pod_grace_minutes: 15
+
+tier3:
+  branch_prefix: ""  # branches named {PROJ}-{SEQ}-{desc}
+  commit_agent_id: "sentinel-agent"
+  notification_wait_minutes: 15
+
+# OPS-234: Tier 2 change-freeze when operator activity is detected.
+# Tier 2 autonomous remediation pauses if the operator was recently active,
+# avoiding collisions between human and agent actions.
+# Tier 1 (observe), Tier 3 (PR proposals), and ESCALATE are unaffected.
+change_freeze:
+  # Seconds of inactivity required before Tier 2 resumes.
+  # Default: 900 (15 minutes) — matches the issue body threshold.
+  change_freeze_seconds: 900
+  # Sources checked for recent activity.
+  # Currently only bash_history is implemented; vault_ssh_audit is future work.
+  change_freeze_sources:
+    - bash_history

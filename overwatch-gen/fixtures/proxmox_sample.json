@@ -1,0 +1,115 @@
+{
+  "nodes": [
+    {
+      "cpu": 0.045,
+      "maxcpu": 16,
+      "maxmem": 137438953472,
+      "mem": 34359738368,
+      "node": "proxmox-1",
+      "status": "online",
+      "type": "node",
+      "uptime": 864000
+    },
+    {
+      "cpu": 0.032,
+      "maxcpu": 16,
+      "maxmem": 137438953472,
+      "mem": 25769803776,
+      "node": "proxmox-2",
+      "status": "online",
+      "type": "node",
+      "uptime": 720000
+    },
+    {
+      "cpu": 0.028,
+      "maxcpu": 16,
+      "maxmem": 137438953472,
+      "mem": 17179869184,
+      "node": "proxmox-3",
+      "status": "online",
+      "type": "node",
+      "uptime": 600000
+    }
+  ],
+  "storage": [
+    {
+      "avail": 500000000000,
+      "content": "images,rootdir",
+      "maxdisk": 600000000000,
+      "node": "proxmox-1",
+      "shared": 1,
+      "status": "available",
+      "storage": "local-zfs",
+      "type": "zfspool",
+      "used": 100000000000
+    },
+    {
+      "avail": 20000000000000,
+      "content": "images",
+      "maxdisk": 28000000000000,
+      "node": "proxmox-1",
+      "shared": 1,
+      "status": "available",
+      "storage": "truenas-iscsi",
+      "type": "iscsi",
+      "used": 8000000000000
+    }
+  ],
+  "vms": [
+    {
+      "cpu": 0.012,
+      "cpus": 4,
+      "maxmem": 8589934592,
+      "mem": 2147483648,
+      "name": "iac-control",
+      "node": "proxmox-1",
+      "status": "running",
+      "type": "qemu",
+      "vmid": 100
+    },
+    {
+      "cpu": 0.025,
+      "cpus": 8,
+      "maxmem": 17179869184,
+      "mem": 8589934592,
+      "name": "master-1",
+      "node": "proxmox-1",
+      "status": "running",
+      "type": "qemu",
+      "vmid": 107
+    },
+    {
+      "cpu": 0.018,
+      "cpus": 8,
+      "maxmem": 17179869184,
+      "mem": 6442450944,
+      "name": "master-2",
+      "node": "proxmox-2",
+      "status": "running",
+      "type": "qemu",
+      "vmid": 109
+    },
+    {
+      "cpu": 0.022,
+      "cpus": 8,
+      "maxmem": 17179869184,
+      "mem": 7516192768,
+      "name": "master-3",
+      "node": "proxmox-3",
+      "status": "running",
+      "type": "qemu",
+      "vmid": 110
+    },
+    {
+      "cpu": 0.008,
+      "cpus": 4,
+      "maxmem": 8589934592,
+      "mem": 2147483648,
+      "name": "vault-server",
+      "node": "proxmox-1",
+      "status": "running",
+      "type": "qemu",
+      "vmid": 205
+    }
+  ]
+}

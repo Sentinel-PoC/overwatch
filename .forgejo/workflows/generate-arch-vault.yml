@@ -1,0 +1,208 @@
+name: Generate Architecture Vault
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "overwatch-gen/**"
+  workflow_dispatch: {}
+  schedule:
+    # Nightly at 04:00 UTC
+    - cron: "0 4 * * *"
+
+jobs:
+  generate:
+    runs-on: [self-hosted, iac]
+    timeout-minutes: 30
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout with a token that can push to vault-autogen branch
+      # -----------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # BOT_PUSH_TOKEN must be a Forgejo/Gitea API token with write access
+          # to the repo, stored as a repository secret.
+          # If unset, the push step will be skipped gracefully.
+          token: ${{ secrets.BOT_PUSH_TOKEN || github.token }}
+          fetch-depth: 0
+
+      # -----------------------------------------------------------------------
+      # 2. Set up Python 3.10+
+      # -----------------------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "overwatch-gen/requirements.txt"
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r overwatch-gen/requirements.txt
+
+      # -----------------------------------------------------------------------
+      # 3. Install d2 binary (cached)
+      #
+      # OPERATOR NOTE: If the self-hosted runner does not have internet access,
+      # install d2 manually once:
+      #   curl -fsSL https://d2lang.com/install.sh | sh -s -- --tty-check
+      # Then add ~/.local/bin to PATH in the runner's environment.
+      # Remove or disable this step after manual installation.
+      # -----------------------------------------------------------------------
+      - name: Cache d2 binary
+        id: cache-d2
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/d2
+          key: d2-binary-${{ runner.os }}-v0.6
+
+      - name: Install d2
+        if: steps.cache-d2.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.local/bin
+          # Download d2 from Terrastruct releases (pinned version for reproducibility)
+          D2_VERSION="v0.6.3"
+          ARCH="$(uname -m)"
+          case "$ARCH" in
+            x86_64) D2_ARCH="amd64" ;;
+            aarch64) D2_ARCH="arm64" ;;
+            *) echo "Unsupported arch: $ARCH"; exit 1 ;;
+          esac
+          curl -fsSL \
+            "https://github.com/terrastruct/d2/releases/download/${D2_VERSION}/d2-${D2_VERSION}-linux-${D2_ARCH}.tar.gz" \
+            | tar -xz -C ~/.local/bin --strip-components=2 "d2-${D2_VERSION}/bin/d2"
+          chmod +x ~/.local/bin/d2
+
+      - name: Add d2 to PATH
+        run: echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify d2
+        run: d2 --version
+
+      # -----------------------------------------------------------------------
+      # 4. Install oc CLI (cached)
+      #
+      # oc is used by Layer 7 collector to query OKD workloads.
+      # -----------------------------------------------------------------------
+      - name: Cache oc binary
+        id: cache-oc
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/oc
+          key: oc-binary-${{ runner.os }}-4.14
+
+      - name: Install oc CLI
+        if: steps.cache-oc.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/.local/bin
+          OC_VERSION="4.14.0"
+          curl -fsSL \
+            "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux.tar.gz" \
+            | tar -xz -C ~/.local/bin oc
+          chmod +x ~/.local/bin/oc
+
+      - name: Verify oc
+        run: oc version --client
+
+      # -----------------------------------------------------------------------
+      # 5. Fetch AppRole credentials from Vault
+      #
+      # The runner host has the sentinel-agent AppRole role_id and secret_id
+      # at the paths defined in the sentinel-agent config.
+      # We use the bot identity (sentinel-agent), NOT the operator token.
+      # -----------------------------------------------------------------------
+      - name: Fetch Vault credentials
+        id: vault-creds
+        run: |
+          # Read AppRole credentials from sentinel-agent's known paths on runner
+          ROLE_ID_FILE="/opt/sentinel-agent/.vault-role-id"
+          SECRET_ID_FILE="/opt/sentinel-agent/.vault-secret-id"
+
+          if [[ ! -f "$ROLE_ID_FILE" || ! -f "$SECRET_ID_FILE" ]]; then
+            echo "::warning::Vault AppRole credential files not found on runner."
+            echo "::warning::Expected: $ROLE_ID_FILE and $SECRET_ID_FILE"
+            echo "vault_available=false" >> "$GITHUB_OUTPUT"
+          else
+            VAULT_ADDR="https://192.168.12.206:8200"
+            VAULT_SKIP_VERIFY="true"
+            export VAULT_ADDR VAULT_SKIP_VERIFY
+
+            TOKEN=$(vault write -format=json auth/approle/login \
+              role_id="$(cat "$ROLE_ID_FILE")" \
+              secret_id="$(cat "$SECRET_ID_FILE")" \
+              | python3 -c "import sys,json; print(json.load(sys.stdin)['auth']['client_token'])")
+
+            # Export for subsequent steps (masked in logs)
+            echo "::add-mask::$TOKEN"
+            echo "VAULT_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+            echo "VAULT_ADDR=$VAULT_ADDR" >> "$GITHUB_ENV"
+            echo "VAULT_SKIP_VERIFY=true" >> "$GITHUB_ENV"
+            echo "vault_available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # -----------------------------------------------------------------------
+      # 6. Run overwatch-gen --all
+      # -----------------------------------------------------------------------
+      - name: Run overwatch-gen
+        env:
+          VAULT_ADDR: ${{ env.VAULT_ADDR }}
+          VAULT_TOKEN: ${{ env.VAULT_TOKEN }}
+          VAULT_SKIP_VERIFY: "true"
+        run: |
+          cd overwatch-gen
+          python3 -m overwatch_gen.main --all
+
+      # -----------------------------------------------------------------------
+      # 7. Generate SVGs from .d2 files
+      # -----------------------------------------------------------------------
+      - name: Generate D2 diagrams
+        run: |
+          find architecture-vault -name "*.d2" -print0 | while IFS= read -r -d '' d2file; do
+            svgfile="${d2file%.d2}.svg"
+            echo "Generating: $svgfile"
+            d2 "$d2file" "$svgfile"
+          done
+          echo "D2 diagram generation complete."
+
+      # -----------------------------------------------------------------------
+      # 8. Commit and push to vault-autogen branch (if changes exist)
+      # -----------------------------------------------------------------------
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet HEAD -- architecture-vault/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit and push to vault-autogen
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          BOT_PUSH_TOKEN: ${{ secrets.BOT_PUSH_TOKEN }}
+        run: |
+          if [[ -z "$BOT_PUSH_TOKEN" ]]; then
+            echo "::warning::BOT_PUSH_TOKEN secret not set — skipping commit."
+            echo "To enable auto-commit: add BOT_PUSH_TOKEN as a repository secret."
+            echo "The token must have write access to the repository."
+            exit 0
+          fi
+
+          git config user.name "overwatch-gen[bot]"
+          git config user.email "overwatch-gen-bot@208.haist.farm"
+
+          TIMESTAMP=$(date -u +%FT%TZ)
+          git checkout -B vault-autogen
+
+          git add architecture-vault/
+          COMMIT_MSG="[OPS-271] Auto-regenerated arch vault ${TIMESTAMP}"$'\n\n'"Generated by overwatch-gen --all on runner ${{ runner.name }}."$'\n'"Parent issue: OPS-271"$'\n'"Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"$'\n\n'"Agent: overwatch-gen[bot]"
+          git commit -m "${COMMIT_MSG}"
+
+          git push origin vault-autogen --force-with-lease
+
+      - name: No changes detected
+        if: steps.changes.outputs.changed == 'false'
+        run: echo "architecture-vault/ is up to date — no commit needed."

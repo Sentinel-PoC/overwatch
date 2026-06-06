@@ -1,0 +1,4 @@
+#!ipxe
+kernel http://10.0.0.1:8080/scos/vmlinuz initrd=initrd.img coreos.inst.install_dev=/dev/sda coreos.inst.insecure coreos.inst.image_url=http://10.0.0.1:8080/scos/metal.raw.gz coreos.inst.ignition_url=http://10.0.0.1:8080/ignition/master.ign ip=dhcp nameserver=10.0.0.1 coreos.live.rootfs_url=http://10.0.0.1:8080/scos/rootfs.img
+initrd http://10.0.0.1:8080/scos/initrd.img
+boot

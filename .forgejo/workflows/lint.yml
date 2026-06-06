@@ -1,0 +1,94 @@
+---
+name: Lint and Validate
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  yamllint:
+    runs-on: iac
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run yamllint
+        run: |
+          echo "Running yamllint on all YAML files..."
+          yamllint -c .yamllint.yml -f parsable . | tee yamllint-report.txt
+
+  tflint:
+    runs-on: iac
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tflint on Terraform configs
+        run: |
+          if [ -d "infrastructure" ]; then
+            cd infrastructure
+            tflint --init 2>/dev/null || true
+            tflint
+          else
+            echo "No infrastructure/ directory found, skipping"
+          fi
+
+  trivy-iac:
+    runs-on: iac
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy IaC misconfiguration scan
+        run: |
+          echo "Running Trivy IaC misconfiguration scan..."
+          trivy fs --scanners misconfig --severity HIGH,CRITICAL .
+
+  shellcheck:
+    runs-on: iac
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: |
+          python3 -m pip install --user --quiet --break-system-packages shellcheck-py
+      - name: Run shellcheck on shell scripts
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "Running shellcheck on all .sh files..."
+          find . -name '*.sh' -not -path './.git/*' -print0 | xargs -0 shellcheck --format=gcc
+
+  tofu-validate:
+    runs-on: iac
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate OpenTofu configuration
+        run: |
+          if [ -d "infrastructure" ]; then
+            cd infrastructure
+            tofu init -backend=false -input=false
+            tofu validate
+          else
+            echo "No infrastructure/ directory found, skipping"
+          fi
+
+  gitleaks:
+    runs-on: iac
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gitleaks secret detection
+        run: |
+          gitleaks detect --source . --report-format json --report-path gitleaks-report.json --no-git
+          echo "No secrets detected."
+
+  # OPS-340: SAST gate. Bandit at HIGH+MEDIUM severity gates the build.
+  # NIST SA-11(1) — Developer Security Testing: static analysis on Python
+  # source in overwatch-gen/ and scripts/. Known false-positives annotated
+  # with # nosec BXXX + reason inline. See also OPS-341 for the structural
+  # B701 improvement (select_autoescape) tracked separately.
+  # OPS-1004: PATH export added before bandit invocation — matches shellcheck
+  # pattern. Pip installs to ~/.local/bin/ which is not on PATH by default
+  # in CI; without the export the shell falls back to any pre-installed bandit
+  # version (or fails with command not found).
+  bandit:
+    runs-on: iac
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bandit SAST (HIGH+MEDIUM gate)
+        run: |
+          python3 -m pip install --user --quiet --break-system-packages bandit
+          export PATH="$HOME/.local/bin:$PATH"
+          bandit -r overwatch-gen scripts -ll

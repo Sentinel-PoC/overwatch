@@ -1,0 +1,88 @@
+{
+  "hosts": [
+    {
+      "hostname": "iac-control",
+      "status": "active",
+      "rules": [
+        {
+          "rule_num": 1,
+          "action": "ALLOW IN",
+          "from": "Anywhere",
+          "to": "Anywhere",
+          "protocol": "tcp",
+          "port": "22",
+          "comment": "Allow SSH"
+        },
+        {
+          "rule_num": 2,
+          "action": "ALLOW IN",
+          "from": "192.168.12.0/24",
+          "to": "Anywhere",
+          "protocol": "tcp",
+          "port": "8200",
+          "comment": "Allow Vault from LAN"
+        },
+        {
+          "rule_num": 3,
+          "action": "ALLOW IN",
+          "from": "192.168.12.0/24",
+          "to": "Anywhere",
+          "protocol": "tcp",
+          "port": "6443",
+          "comment": "Allow K8s API from LAN"
+        },
+        {
+          "rule_num": 4,
+          "action": "DENY IN",
+          "from": "Anywhere",
+          "to": "Anywhere",
+          "protocol": "any",
+          "port": "",
+          "comment": "Default deny all"
+        }
+      ]
+    },
+    {
+      "hostname": "proxmox-01",
+      "status": "active",
+      "rules": [
+        {
+          "rule_num": 1,
+          "action": "ALLOW IN",
+          "from": "192.168.12.0/24",
+          "to": "Anywhere",
+          "protocol": "tcp",
+          "port": "22",
+          "comment": "Allow SSH from LAN"
+        },
+        {
+          "rule_num": 2,
+          "action": "ALLOW IN",
+          "from": "192.168.12.0/24",
+          "to": "Anywhere",
+          "protocol": "tcp",
+          "port": "8006",
+          "comment": "Allow PVE web UI from LAN"
+        },
+        {
+          "rule_num": 3,
+          "action": "ALLOW IN",
+          "from": "192.168.12.0/24",
+          "to": "Anywhere",
+          "protocol": "tcp",
+          "port": "3128",
+          "comment": "Allow Corosync from cluster nodes"
+        },
+        {
+          "rule_num": 4,
+          "action": "DENY IN",
+          "from": "Anywhere",
+          "to": "Anywhere",
+          "protocol": "any",
+          "port": "",
+          "comment": "Default deny all"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+direction: right
+
+title: L5 Session — mTLS Posture + Identity {
+  shape: text
+  style.font-size: 20
+  style.bold: true
+}
+
+# --- Keycloak identity node ---
+{% if clients %}
+keycloak: "Keycloak (sentinel realm)" {
+  shape: hexagon
+  style.fill: "#e8f5e9"
+  style.stroke: "#4caf50"
+}
+{% for c in clients %}
+kc_{{ c.client_id | replace("-", "_") | replace(".", "_") }}: "{{ c.client_id }}" {
+  shape: rectangle
+  style.fill: "#f1f8e9"
+  style.font-size: 11
+}
+keycloak -> kc_{{ c.client_id | replace("-", "_") | replace(".", "_") }}: "" {
+  style.stroke: "#81c784"
+}
+{% endfor %}
+{% endif %}
+
+# --- PeerAuth namespace nodes ---
+{% set ns_list = peer_auths | map(attribute='namespace') | unique | sort | list %}
+{% for ns in ns_list %}
+{% set ns_pa = peer_auths | selectattr("namespace", "equalto", ns) | selectattr("scope", "equalto", "namespace-default") | list %}
+{% set mode = ns_pa[0].mode if ns_pa else "UNSET" %}
+{% set fill = "#c8e6c9" if mode == "STRICT" else ("#fff9c4" if mode == "PERMISSIVE" else "#ffcdd2") %}
+{% set stroke = "#388e3c" if mode == "STRICT" else ("#f9a825" if mode == "PERMISSIVE" else "#c62828") %}
+ns_{{ ns | replace("-", "_") }}: "{{ ns }}\n({{ mode }})" {
+  shape: rectangle
+  style.fill: "{{ fill }}"
+  style.stroke: "{{ stroke }}"
+}
+{% endfor %}
+
+# --- Flow matrix edges ---
+{% for row in flow_matrix %}
+{% if row.flag == "" %}
+{% set edge_color = "#4caf50" %}
+{% elif row.flag == "WARN" %}
+{% set edge_color = "#ff9800" %}
+{% else %}
+{% set edge_color = "#f44336" %}
+{% endif %}
+ns_{{ row.from_ns | replace("-", "_") }} -> ns_{{ row.to_ns | replace("-", "_") }}: "{{ row.posture }}" {
+  style.stroke: "{{ edge_color }}"
+  {% if row.flag %}style.stroke-dash: 4{% endif %}
+}
+{% endfor %}

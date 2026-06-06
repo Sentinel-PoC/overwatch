@@ -1,0 +1,74 @@
+{
+  "source": "certmanager",
+  "certificates": [
+    {
+      "name": "vault-tls",
+      "namespace": "vault",
+      "dns_names": ["vault.208.haist.farm", "vault.internal.haist.farm"],
+      "issuer_name": "haist-intermediate-issuer",
+      "issuer_kind": "ClusterIssuer",
+      "renewal_time": "2027-03-20T00:00:00Z",
+      "not_after": "2027-04-20T00:00:00Z",
+      "days_remaining": 365,
+      "ready": true
+    },
+    {
+      "name": "plane-tls",
+      "namespace": "plane",
+      "dns_names": ["plane.208.haist.farm"],
+      "issuer_name": "haist-intermediate-issuer",
+      "issuer_kind": "ClusterIssuer",
+      "renewal_time": "2026-04-10T00:00:00Z",
+      "not_after": "2026-05-01T00:00:00Z",
+      "days_remaining": 11,
+      "ready": true
+    },
+    {
+      "name": "gitea-tls",
+      "namespace": "gitea",
+      "dns_names": ["gitea.208.haist.farm", "git.haist.farm"],
+      "issuer_name": "haist-intermediate-issuer",
+      "issuer_kind": "ClusterIssuer",
+      "renewal_time": "2026-04-05T00:00:00Z",
+      "not_after": "2026-04-25T00:00:00Z",
+      "days_remaining": 5,
+      "ready": true
+    },
+    {
+      "name": "traefik-default-tls",
+      "namespace": "traefik",
+      "dns_names": ["*.208.haist.farm"],
+      "issuer_name": "haist-intermediate-issuer",
+      "issuer_kind": "ClusterIssuer",
+      "renewal_time": "2027-01-01T00:00:00Z",
+      "not_after": "2027-04-01T00:00:00Z",
+      "days_remaining": 346,
+      "ready": true
+    },
+    {
+      "name": "langfuse-tls",
+      "namespace": "langfuse",
+      "dns_names": ["langfuse.208.haist.farm"],
+      "issuer_name": "haist-intermediate-issuer",
+      "issuer_kind": "ClusterIssuer",
+      "renewal_time": "2026-11-01T00:00:00Z",
+      "not_after": "2026-12-01T00:00:00Z",
+      "days_remaining": 225,
+      "ready": true
+    }
+  ],
+  "cluster_issuers": [
+    {
+      "name": "haist-intermediate-issuer",
+      "type": "vault",
+      "vault_path": "pki_int/sign/haist-farm",
+      "ready": true
+    },
+    {
+      "name": "selfsigned-issuer",
+      "type": "selfSigned",
+      "vault_path": "",
+      "ready": true
+    }
+  ]
+}

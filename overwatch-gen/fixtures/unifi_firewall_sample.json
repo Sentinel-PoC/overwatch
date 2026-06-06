@@ -1,0 +1,84 @@
+{
+  "firewall_policies": [
+    {
+      "action": "ALLOW",
+      "description": "Allow established connections",
+      "destinations": [
+        {
+          "matchingTarget": "ANY",
+          "matchingTargetType": "ANY"
+        }
+      ],
+      "enabled": true,
+      "id": "fw-policy-001",
+      "name": "allow-established",
+      "schedule": null,
+      "sources": [
+        {
+          "matchingTarget": "ANY",
+          "matchingTargetType": "ANY"
+        }
+      ]
+    },
+    {
+      "action": "BLOCK",
+      "description": "Block IoT to management VLAN",
+      "destinations": [
+        {
+          "matchingTarget": "NETWORK",
+          "matchingTargetType": "NETWORK",
+          "network": "management"
+        }
+      ],
+      "enabled": true,
+      "id": "fw-policy-002",
+      "name": "block-iot-to-mgmt",
+      "schedule": null,
+      "sources": [
+        {
+          "matchingTarget": "NETWORK",
+          "matchingTargetType": "NETWORK",
+          "network": "iot"
+        }
+      ]
+    },
+    {
+      "action": "ALLOW",
+      "description": "Allow management to all zones",
+      "destinations": [
+        {
+          "matchingTarget": "ANY",
+          "matchingTargetType": "ANY"
+        }
+      ],
+      "enabled": true,
+      "id": "fw-policy-003",
+      "name": "allow-mgmt-all",
+      "schedule": null,
+      "sources": [
+        {
+          "matchingTarget": "NETWORK",
+          "matchingTargetType": "NETWORK",
+          "network": "management"
+        }
+      ]
+    }
+  ],
+  "firewall_zones": [
+    {
+      "id": "zone-001",
+      "name": "LAN",
+      "networkIds": ["net-management"]
+    },
+    {
+      "id": "zone-002",
+      "name": "IOT",
+      "networkIds": ["net-iot"]
+    },
+    {
+      "id": "zone-003",
+      "name": "WAN",
+      "networkIds": []
+    }
+  ]
+}

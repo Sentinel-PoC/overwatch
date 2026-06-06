@@ -1,0 +1,44 @@
+{
+  "networks": [
+    {
+      "dhcpEnabled": true,
+      "dhcpRangeStart": "192.168.12.100",
+      "dhcpRangeStop": "192.168.12.200",
+      "id": "net-management",
+      "ipSubnet": "192.168.12.0/24",
+      "name": "Management",
+      "purpose": "corporate",
+      "vlanId": 1
+    },
+    {
+      "dhcpEnabled": true,
+      "dhcpRangeStart": "10.10.20.100",
+      "dhcpRangeStop": "10.10.20.200",
+      "id": "net-iot",
+      "ipSubnet": "10.10.20.0/24",
+      "name": "IoT",
+      "purpose": "corporate",
+      "vlanId": 20
+    },
+    {
+      "dhcpEnabled": true,
+      "dhcpRangeStart": "10.10.30.100",
+      "dhcpRangeStop": "10.10.30.200",
+      "id": "net-guest",
+      "ipSubnet": "10.10.30.0/24",
+      "name": "Guest",
+      "purpose": "guest",
+      "vlanId": 30
+    },
+    {
+      "dhcpEnabled": false,
+      "dhcpRangeStart": null,
+      "dhcpRangeStop": null,
+      "id": "net-servers",
+      "ipSubnet": "192.168.200.0/24",
+      "name": "Servers",
+      "purpose": "corporate",
+      "vlanId": 200
+    }
+  ]
+}

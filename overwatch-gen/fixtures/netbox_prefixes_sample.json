@@ -1,0 +1,72 @@
+{
+  "ip_addresses": [
+    {
+      "address": "192.168.12.1/24",
+      "description": "UCG-Fiber gateway",
+      "dns_name": "gateway.208.haist.farm",
+      "family": 4,
+      "id": 1,
+      "role": null,
+      "status": "active",
+      "tags": []
+    },
+    {
+      "address": "192.168.12.206/24",
+      "description": "Vault server",
+      "dns_name": "vault.208.haist.farm",
+      "family": 4,
+      "id": 2,
+      "role": "loopback",
+      "status": "active",
+      "tags": []
+    },
+    {
+      "address": "192.168.12.210/24",
+      "description": "iac-control",
+      "dns_name": "iac-control.208.haist.farm",
+      "family": 4,
+      "id": 3,
+      "role": null,
+      "status": "active",
+      "tags": []
+    }
+  ],
+  "prefixes": [
+    {
+      "description": "Management LAN",
+      "family": 4,
+      "id": 1,
+      "is_pool": false,
+      "prefix": "192.168.12.0/24",
+      "role": null,
+      "site": null,
+      "status": "active",
+      "tags": [],
+      "vlan": null
+    },
+    {
+      "description": "OKD Pod Network",
+      "family": 4,
+      "id": 2,
+      "is_pool": true,
+      "prefix": "10.128.0.0/14",
+      "role": null,
+      "site": null,
+      "status": "active",
+      "tags": [],
+      "vlan": null
+    },
+    {
+      "description": "OKD Service Network",
+      "family": 4,
+      "id": 3,
+      "is_pool": true,
+      "prefix": "172.30.0.0/16",
+      "role": null,
+      "site": null,
+      "status": "active",
+      "tags": [],
+      "vlan": null
+    }
+  ]
+}

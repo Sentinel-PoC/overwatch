@@ -1,0 +1,137 @@
+---
+# OPS-204: Security scan for overwatch (platform ops repo)
+# overwatch contains YAML configs, shell scripts, agent-roles.md, check-strength.yaml,
+# and other platform orchestration files.
+# SAST scope: secrets detection only (p/secrets).
+# Rationale: p/security-audit on YAML/shell config files produces high false-positive
+# noise. p/secrets is high-signal and catches hardcoded credentials in config files.
+# NOTE: check-strength.yaml and nist-compliance-check.sh are READ-ONLY per agent-roles.md
+# — this scan is detection-only, not remediation.
+#
+# continue-on-error: true — first-iteration soft deployment (OPS-204).
+# OPS-235: pip install step fixed — use python3 -m ensurepip + --break-system-packages.
+# OPS-235 (fix 2): DefectDojo upload step guarded against empty DEFECTDOJO_URL secret.
+
+name: Security Scan
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # OPS-204: SAST via semgrep (secrets detection for YAML/shell platform config)
+  # SA-11 (Developer Security Testing), SA-15 (Development Process, Tools)
+  semgrep:
+    runs-on: iac
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure semgrep is installed
+        run: |
+          if command -v semgrep >/dev/null 2>&1; then
+            echo "semgrep found: $(semgrep --version)"
+          else
+            echo "::warning::semgrep not on runner — installing via pip (OPS-235 root-cause: python3-pip absent on iac runner; OPS-207 tracks packer base-image fix)"
+            # Bootstrap pip from Python's bundled ensurepip (no network required).
+            # pip3/python3-pip is not installed by default on Ubuntu 24.04 and is absent
+            # from the iac-control ansible role package list. ensurepip uses the pip copy
+            # bundled inside CPython itself.
+            python3 -m ensurepip --upgrade 2>/dev/null || true
+            # --break-system-packages bypasses PEP 668 externally-managed-environment
+            # error introduced in Python 3.11+ (Ubuntu 24.04 enforces this).
+            python3 -m pip install semgrep --quiet --break-system-packages
+            # Export install location to PATH for subsequent steps in this job.
+            # Writing to $GITHUB_PATH takes effect on the next step.
+            printf '%s\n' "$HOME/.local/bin" "/usr/local/bin" >> "$GITHUB_PATH"
+            # Verify install in current step (PATH not yet updated from GITHUB_PATH).
+            PATH="$HOME/.local/bin:/usr/local/bin:$PATH" semgrep --version || true
+            echo "semgrep installation complete"
+          fi
+      - name: Run semgrep SAST scan (secrets only)
+        run: |
+          set -euo pipefail
+          # p/secrets only — YAML/shell config/agent files.
+          # p/security-audit is code-focused and produces high noise on platform config
+          # repos without application logic (worker judgment per OPS-204 spec).
+          SEMGREP_EXIT=0
+          semgrep \
+            --config p/secrets \
+            --severity ERROR \
+            --json \
+            --output semgrep-report.json \
+            --no-rewrite-rule-ids \
+            . 2>&1 || SEMGREP_EXIT=$?
+
+          FINDING_COUNT=$(python3 -c "
+          import json, sys
+          try:
+              d = json.load(open('semgrep-report.json'))
+              print(len(d.get('results', [])))
+          except Exception:
+              print(0)
+          " 2>/dev/null || echo 0)
+          echo "Semgrep findings: ${FINDING_COUNT} (p/secrets, severity >= ERROR)"
+
+          if [ "${SEMGREP_EXIT}" -gt 1 ]; then
+            echo "::error::semgrep scan error (exit ${SEMGREP_EXIT})"
+            exit 1
+          fi
+          [ "${FINDING_COUNT}" -gt 0 ] && \
+            echo "::notice::${FINDING_COUNT} findings — review semgrep-report.json or DefectDojo (OPS-204 first-iteration: non-blocking)" || \
+            echo "Semgrep: 0 findings (p/secrets, ERROR severity)"
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: semgrep-report
+          path: semgrep-report.json
+          if-no-files-found: ignore
+          retention-days: 90
+      - name: Upload to DefectDojo
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && hashFiles('semgrep-report.json') != ''
+        env:
+          DEFECTDOJO_URL: ${{ secrets.DEFECTDOJO_URL }}
+          DEFECTDOJO_API_KEY: ${{ secrets.DEFECTDOJO_API_KEY }}
+        run: |
+          # OPS-235: Guard against empty DEFECTDOJO_URL (repo secret not yet configured).
+          # forgejo-runner invokes step shells with implicit -e; RESPONSE=$(curl ...) with
+          # an empty URL causes curl to exit 3 (bad URL format) which propagates as step
+          # failure. This guard lets the workflow succeed until secrets are wired.
+          if [ -z "${DEFECTDOJO_URL:-}" ]; then
+            echo "::warning::DEFECTDOJO_URL secret not configured — skipping DefectDojo upload (add DEFECTDOJO_URL + DEFECTDOJO_API_KEY as repo secrets to activate, see OPS-235)"
+            exit 0
+          fi
+          echo "Uploading semgrep findings to DefectDojo..."
+          RESPONSE=$(curl -sk -X POST "${DEFECTDOJO_URL}/api/v2/reimport-scan/" \
+            -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+            -F "scan_type=Semgrep JSON Report" \
+            -F "product_name=Overwatch" \
+            -F "engagement_name=Main Branch CI/CD — SAST" \
+            -F "test_title=Semgrep SAST" \
+            -F "auto_create_context=true" \
+            -F "file=@semgrep-report.json" \
+            -F "active=true" \
+            -F "verified=false" \
+            -F "close_old_findings=true" \
+            -F "minimum_severity=Info" \
+            -F "scan_date=$(date +%Y-%m-%d)" \
+            -F "tags=semgrep,sast,secrets,sa-11,sa-15,ops-204" \
+            -w "\n%{http_code}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          echo "HTTP Status: $HTTP_CODE"
+          [ "$HTTP_CODE" -lt 400 ] || echo "::warning::DefectDojo upload failed (HTTP ${HTTP_CODE}) — artifact preserved"
+
+  gitleaks:
+    runs-on: iac
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gitleaks secret detection
+        run: |
+          gitleaks detect --source . --report-format json --report-path gitleaks-report.json --no-git
+          echo "No secrets detected."
+      - uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+          if-no-files-found: ignore
+          retention-days: 90

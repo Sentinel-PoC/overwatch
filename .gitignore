@@ -1,0 +1,39 @@
+# Terraform/OpenTofu state files (using remote backend)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup*
+
+# Local .terraform directories
+**/.terraform/*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Sensitive variable files
+*.tfvars
+*.tfvars.json
+
+# Generated ignition files (OKD installer output — NEVER commit)
+*.ign
+overwatch-gen/auth/
+overwatch-gen/.openshift_install*
+overwatch-gen/metadata.json
+overwatch-gen/bootstrap.ign
+overwatch-gen/master.ign
+overwatch-gen/worker.ign
+
+# OKD infrastructure ignition directory (contains embedded private keys — NEVER commit)
+infrastructure/files/ignition/
+
+# OKD build artifacts and install state
+auth/
+bin/
+scos-artifacts/
+.openshift_install*
+metadata.json
+install-config.yaml.backup
+sentinel-agent/__pycache__/
+sentinel-agent/**/__pycache__/
+**/*.pyc
+AGENT-STATE.md

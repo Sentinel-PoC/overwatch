@@ -1,0 +1,65 @@
+---
+include:
+  - local: 'ci/security.yml'
+
+stages:
+  - lint
+  - security-scan
+  - generate
+  - provision
+
+variables:
+  ANSIBLE_HOST_KEY_CHECKING: "False"
+
+  # MinIO/S3 Backend - credentials from CI/CD variables (sourced from Vault)
+  AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
+  AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
+
+  # Proxmox - credentials from CI/CD variables (sourced from Vault)
+  TF_VAR_proxmox_api_token: "${PROXMOX_API_TOKEN}=${PROXMOX_TOKEN_SECRET}"
+
+generate_ignition:
+  stage: generate
+  tags:
+    - sentinel-iac
+  script:
+    - echo "Generating OpenShift Ignition with QEMU Guest Agent..."
+    - chmod +x ./generate_ignition.sh
+    - ./generate_ignition.sh
+    - echo "Hosting Ignition files in web root..."
+    - mkdir -p /var/www/html/ignition
+    - rm -f /var/www/html/ignition/*.ign
+    - install -m 644 overwatch-gen/*.ign /var/www/html/ignition/
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+provision_plan:
+  stage: provision
+  tags:
+    - sentinel-iac
+  script:
+    - cd infrastructure
+    - tofu init -input=false -force-copy
+    - tofu validate
+    - |
+      EXIT_CODE=0
+      tofu plan -detailed-exitcode || EXIT_CODE=$?
+      if [ $EXIT_CODE -eq 1 ]; then echo "Plan failed"; exit 1; fi
+      if [ $EXIT_CODE -eq 2 ]; then echo "Changes detected - review before apply"; fi
+  needs: ["generate_ignition"]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+provision_apply:
+  stage: provision
+  tags:
+    - sentinel-iac
+  script:
+    - cd infrastructure
+    - tofu init -input=false -force-copy
+    - tofu apply -auto-approve
+  needs: ["provision_plan"]
+  when: manual
+  allow_failure: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'

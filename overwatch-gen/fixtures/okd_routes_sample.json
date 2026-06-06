@@ -1,0 +1,38 @@
+{
+  "source": "okd_routes",
+  "routes": [
+    {
+      "name": "console-route",
+      "namespace": "openshift-console",
+      "host": "console.apps.okd.haist.farm",
+      "path": "/",
+      "tls_termination": "reencrypt",
+      "tls_insecure_edge_policy": "Redirect",
+      "destination_service": "console",
+      "destination_port": 443,
+      "wildcard_policy": "None"
+    },
+    {
+      "name": "oauth-route",
+      "namespace": "openshift-authentication",
+      "host": "oauth.apps.okd.haist.farm",
+      "path": "/",
+      "tls_termination": "passthrough",
+      "tls_insecure_edge_policy": "None",
+      "destination_service": "oauth-openshift",
+      "destination_port": 6443,
+      "wildcard_policy": "None"
+    },
+    {
+      "name": "monitoring-route",
+      "namespace": "openshift-monitoring",
+      "host": "prometheus.apps.okd.haist.farm",
+      "path": "/",
+      "tls_termination": "reencrypt",
+      "tls_insecure_edge_policy": "Redirect",
+      "destination_service": "prometheus-k8s",
+      "destination_port": 9091,
+      "wildcard_policy": "None"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+# Obsidian workspace state — user-local, not version-controlled
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+
+# Obsidian plugin cache and internal state
+.obsidian/cache
+.obsidian/plugins/*/data.json
+
+# Trash
+.trash/
+
+# macOS metadata
+.DS_Store
+
+# Generated SVG diagrams (committed separately by CI on vault-autogen branch)
+# Uncomment the line below if you want to exclude SVGs from local git tracking.
+# 99-diagrams-svg/
